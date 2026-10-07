@@ -1,0 +1,232 @@
+import { test, before, after, beforeEach } from 'node:test';
+import app from '../app.js';
+import bcrypt from 'bcryptjs';
+import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { Doctor, Appointment, Payment, Claim, User } from '../models/index.js';
+import {
+  reserve,
+  reschedule,
+  cancel,
+  capturedPayment,
+  releaseExpired,
+} from '../services/booking.service.js';
+import { clinicDate } from '../services/policies.js';
+let replica, doctor, patient, other, server, base;
+const at = (hour, days = 2) =>
+  `${clinicDate(new Date(Date.now() + days * 86400000))}T${hour}:00:00+05:30`;
+before(async () => {
+  process.env.JWT_SECRET = 'test-only-secret-with-more-than-32-characters';
+  process.env.APP_ORIGIN = 'http://localhost:5173';
+  server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  base = `http://127.0.0.1:${server.address().port}/api`;
+  replica = await MongoMemoryReplSet.create({
+    replSet: { count: 1, storageEngine: 'wiredTiger' },
+    binary: { downloadDir: '/private/tmp/careline-mongodb-binaries' },
+  });
+  await mongoose.connect(replica.getUri());
+  await Promise.all([Doctor.init(), Appointment.init(), Payment.init(), Claim.init(), User.init()]);
+});
+after(async () => {
+  await new Promise((resolve) => server.close(resolve));
+  await mongoose.disconnect();
+  await replica?.stop();
+});
+beforeEach(async () => {
+  await Promise.all([
+    Doctor.deleteMany({}),
+    Appointment.deleteMany({}),
+    Payment.deleteMany({}),
+    Claim.deleteMany({}),
+    User.deleteMany({}),
+  ]);
+  patient = new mongoose.Types.ObjectId();
+  other = new mongoose.Types.ObjectId();
+  doctor = await Doctor.create({
+    name: 'Test doctor',
+    fee: 600,
+    days: [0, 1, 2, 3, 4, 5, 6],
+    start: 9,
+    end: 17,
+    breakStart: 13,
+    breakEnd: 14,
+    leave: [],
+  });
+});
+async function paidBooking(time = at('10')) {
+  const record = await reserve(patient, doctor._id, time, 'Test');
+  record.payment.orderId = `order_${record.payment._id}`;
+  await record.payment.save();
+  await capturedPayment({
+    order_id: record.payment.orderId,
+    id: `pay_${record.payment._id}`,
+    status: 'captured',
+    amount: 60000,
+    currency: 'INR',
+  });
+  return record;
+}
+test('concurrent reservations allow exactly one doctor slot owner', async () => {
+  const results = await Promise.allSettled([
+    reserve(patient, doctor._id, at('10'), 'A'),
+    reserve(other, doctor._id, at('10'), 'B'),
+  ]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(await Appointment.countDocuments(), 1);
+  assert.equal(await Claim.countDocuments(), 2);
+});
+test('patient cannot reserve two doctors for the same time', async () => {
+  const second = await Doctor.create({ ...doctor.toObject(), _id: new mongoose.Types.ObjectId() });
+  await reserve(patient, doctor._id, at('10'), '');
+  await assert.rejects(reserve(patient, second._id, at('10'), ''));
+  assert.equal(await Appointment.countDocuments(), 1);
+});
+test('failed rescheduling preserves original appointment and both claims', async () => {
+  const { appointment } = await paidBooking();
+  await reserve(other, doctor._id, at('11'), '');
+  await assert.rejects(reschedule(appointment._id, { _id: patient }, at('11')));
+  assert.equal(
+    (await Appointment.findById(appointment._id)).start.toISOString(),
+    new Date(at('10')).toISOString(),
+  );
+  assert.equal(await Claim.countDocuments({ appointment: appointment._id }), 2);
+});
+test('successful rescheduling moves claims and retains original payment', async () => {
+  const { appointment, payment } = await paidBooking();
+  await reschedule(appointment._id, { _id: patient }, at('11'));
+  const moved = await Appointment.findById(appointment._id);
+  assert.equal(moved.start.toISOString(), new Date(at('11')).toISOString());
+  assert.equal(String(moved.payment), String(payment._id));
+  assert.equal(await Claim.countDocuments({ start: new Date(at('10')) }), 0);
+});
+test('duplicate capture is idempotent and incorrect amounts are rejected', async () => {
+  const { appointment, payment } = await reserve(patient, doctor._id, at('10'), '');
+  payment.orderId = 'order_test';
+  await payment.save();
+  const gateway = {
+    order_id: 'order_test',
+    id: 'pay_test',
+    status: 'captured',
+    amount: 1,
+    currency: 'INR',
+  };
+  await assert.rejects(capturedPayment(gateway));
+  gateway.amount = 60000;
+  await capturedPayment(gateway);
+  await capturedPayment(gateway);
+  assert.equal((await Appointment.findById(appointment._id)).status, 'confirmed');
+  assert.equal(await Payment.countDocuments({ status: 'paid' }), 1);
+});
+test('late capture queues refund without stealing a newly reserved slot', async () => {
+  const { appointment, payment } = await reserve(patient, doctor._id, at('10'), '');
+  payment.orderId = 'order_expired';
+  await payment.save();
+  await Appointment.updateOne(
+    { _id: appointment._id },
+    { $set: { expiresAt: new Date(Date.now() - 1000) } },
+  );
+  await releaseExpired();
+  await reserve(other, doctor._id, at('10'), '');
+  await capturedPayment({
+    order_id: payment.orderId,
+    id: 'pay_late',
+    status: 'captured',
+    amount: 60000,
+    currency: 'INR',
+  });
+  assert.equal((await Payment.findById(payment._id)).status, 'refund-pending');
+  assert.equal((await Appointment.findById(appointment._id)).status, 'expired');
+  assert.equal(await Claim.countDocuments(), 2);
+});
+test('cancellation enforces ownership, queues refund and frees slot', async () => {
+  const { appointment, payment } = await paidBooking();
+  await assert.rejects(cancel(appointment._id, { _id: other, role: 'patient' }), { status: 403 });
+  await cancel(appointment._id, { _id: patient, role: 'patient' });
+  assert.equal((await Appointment.findById(appointment._id)).status, 'cancelled');
+  assert.equal((await Payment.findById(payment._id)).status, 'refund-pending');
+  assert.equal(await Claim.countDocuments(), 0);
+  await assert.rejects(cancel(appointment._id, { _id: patient, role: 'patient' }));
+});
+test('past times and off-grid appointment times are rejected', async () => {
+  await assert.rejects(reserve(patient, doctor._id, at('10', -1), ''));
+  await assert.rejects(reserve(patient, doctor._id, at('10').replace(':00:00', ':15:00'), ''));
+  assert.equal(await Appointment.countDocuments(), 0);
+});
+async function request(
+  path,
+  { method = 'GET', body, cookie, origin = 'http://localhost:5173' } = {},
+) {
+  return fetch(`${base}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: origin,
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+test('registration hashes passwords, ignores role injection and enforces authorization', async () => {
+  let r = await request('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Test Patient',
+      email: 'patient@example.test',
+      password: 'TestPassword123!',
+      role: 'admin',
+    },
+  });
+  assert.equal(r.status, 201);
+  const user = await r.json();
+  assert.equal(user.role, 'patient');
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  const stored = await User.findById(user.id).select('+password');
+  assert.notEqual(stored.password, 'TestPassword123!');
+  assert.ok(await bcrypt.compare('TestPassword123!', stored.password));
+  r = await request('/admin/doctors', { cookie });
+  assert.equal(r.status, 403);
+  r = await request('/auth/me', { cookie });
+  assert.equal(r.status, 200);
+  r = await request('/appointments');
+  assert.equal(r.status, 401);
+  r = await request('/auth/me', {
+    method: 'PATCH',
+    cookie,
+    origin: 'https://other.example',
+    body: { name: 'Changed' },
+  });
+  assert.equal(r.status, 403);
+});
+test('doctor schedule rejects changes that displace existing bookings', async () => {
+  const staff = await User.create({
+    name: 'Doctor Test',
+    email: 'doctor@example.test',
+    password: await bcrypt.hash('TestPassword123!', 4),
+    role: 'doctor',
+  });
+  doctor.user = staff._id;
+  await doctor.save();
+  await paidBooking();
+  let r = await request('/auth/login', {
+    method: 'POST',
+    body: { email: staff.email, password: 'TestPassword123!' },
+  });
+  assert.equal(r.status, 200);
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  r = await request('/doctor/schedule', {
+    method: 'PATCH',
+    cookie,
+    body: {
+      days: [0, 1, 2, 3, 4, 5, 6],
+      start: 9,
+      end: 17,
+      breakStart: 13,
+      breakEnd: 14,
+      leave: [clinicDate(new Date(at('10')))],
+    },
+  });
+  assert.equal(r.status, 409);
+  assert.deepEqual((await Doctor.findById(doctor._id)).leave, []);
+});
