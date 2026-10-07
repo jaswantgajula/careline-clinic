@@ -1,0 +1,1 @@
+{"name":"careline-clinic","private":true,"workspaces":["frontend","backend"],"scripts":{"dev":"concurrently -n api,web -c blue,green \"npm run dev -w backend\" \"npm run dev -w frontend\"","build":"npm run build -w frontend","test":"npm run test -w backend","seed":"npm run seed -w backend"},"devDependencies":{"concurrently":"^9.2.0"}}
