@@ -13,6 +13,7 @@ import {
   releaseExpired,
 } from '../services/booking.service.js';
 import { clinicDate } from '../services/policies.js';
+import { findOrCreateGoogleUser } from '../services/googleAuth.service.js';
 let replica, doctor, patient, other, server, base;
 const at = (hour, days = 2) =>
   `${clinicDate(new Date(Date.now() + days * 86400000))}T${hour}:00:00+05:30`;
@@ -245,6 +246,82 @@ test('registration hashes passwords, ignores role injection and enforces authori
     body: { name: 'Changed' },
   });
   assert.equal(r.status, 403);
+});
+test('Google identity creates and reuses one passwordless patient account', async () => {
+  const payload = {
+    sub: 'google-sub-123',
+    email: 'new.patient@gmail.com',
+    email_verified: true,
+    name: 'Google Patient',
+    picture: 'https://example.test/avatar.png',
+  };
+  const first = await findOrCreateGoogleUser(payload);
+  const second = await findOrCreateGoogleUser({ ...payload, name: 'Changed Google Name' });
+  assert.equal(String(first._id), String(second._id));
+  assert.equal(first.role, 'patient');
+  assert.equal(await User.countDocuments({ email: payload.email }), 1);
+
+  const stored = await User.findById(first._id).select('+password +googleSub');
+  assert.equal(stored.password, undefined);
+  assert.equal(stored.googleSub, payload.sub);
+
+  const login = await request('/auth/login', {
+    method: 'POST',
+    body: { email: payload.email, password: 'TestPassword123!' },
+  });
+  assert.equal(login.status, 401);
+});
+test('Google identity links authoritative patient email but protects staff and other providers', async () => {
+  const password = await bcrypt.hash('TestPassword123!', 4);
+  const patientAccount = await User.create({
+    name: 'Existing Patient',
+    email: 'existing.patient@gmail.com',
+    password,
+    role: 'patient',
+  });
+  const linked = await findOrCreateGoogleUser({
+    sub: 'google-linked-patient',
+    email: patientAccount.email,
+    email_verified: true,
+    name: patientAccount.name,
+  });
+  assert.equal(String(linked._id), String(patientAccount._id));
+  assert.equal(
+    (await User.findById(patientAccount._id).select('+googleSub')).googleSub,
+    'google-linked-patient',
+  );
+
+  await User.create({
+    name: 'Clinic Staff',
+    email: 'staff@gmail.com',
+    password,
+    role: 'admin',
+  });
+  await assert.rejects(
+    findOrCreateGoogleUser({
+      sub: 'google-staff',
+      email: 'staff@gmail.com',
+      email_verified: true,
+      name: 'Clinic Staff',
+    }),
+    { status: 403 },
+  );
+
+  await User.create({
+    name: 'External Patient',
+    email: 'patient@example.com',
+    password,
+    role: 'patient',
+  });
+  await assert.rejects(
+    findOrCreateGoogleUser({
+      sub: 'google-external',
+      email: 'patient@example.com',
+      email_verified: true,
+      name: 'External Patient',
+    }),
+    { status: 409 },
+  );
 });
 test('patient can release only their own pending checkout reservation', async () => {
   const password = 'TestPassword123!';

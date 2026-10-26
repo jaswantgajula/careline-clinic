@@ -1586,6 +1586,33 @@ td {
   margin: 20px 0;
   color: #8a9ab1;
 }
+.google-button {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 14px;
+  overflow: hidden;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8a9ab1;
+  font-size: 11px;
+  margin: 15px 0 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+.app[data-theme='dark'] .auth-divider {
+  color: #8797ad;
+}
 .toast {
   position: fixed;
   bottom: 25px;

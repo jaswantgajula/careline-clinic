@@ -17,6 +17,7 @@ import {
 } from '../services/booking.service.js';
 import { razorpay, paymentsReady } from '../config/razorpay.js';
 import { validSignature, reconcilePayments } from '../services/payment.service.js';
+import { findOrCreateGoogleUser, verifyGoogleCredential } from '../services/googleAuth.service.js';
 const router = Router();
 const id = z.string().regex(/^[a-f\d]{24}$/i);
 const startSchema = z.string().datetime({ offset: true });
@@ -55,8 +56,15 @@ router.post('/auth/register', loginLimit, async (req, res) => {
 router.post('/auth/login', loginLimit, async (req, res) => {
   const body = credentials.parse(req.body);
   const u = await User.findOne({ email: body.email }).select('+password');
-  if (!u || !(await bcrypt.compare(body.password, u.password)))
+  if (!u || !u.password || !(await bcrypt.compare(body.password, u.password)))
     throw fail('Email or password is incorrect.', 401);
+  session(res, u);
+  res.json(clean(u));
+});
+router.post('/auth/google', loginLimit, async (req, res) => {
+  const { credential } = z.object({ credential: z.string().min(100).max(10000) }).parse(req.body);
+  const payload = await verifyGoogleCredential(credential);
+  const u = await findOrCreateGoogleUser(payload);
   session(res, u);
   res.json(clean(u));
 });

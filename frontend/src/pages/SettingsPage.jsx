@@ -115,6 +115,7 @@ export default function SettingsPage({ user, demo, health, onUser, onDemo, onLog
             <div className="integration-list">
               {[
                 ['Clinic database', health.database],
+                ['Google sign-in', health.googleAuth],
                 ['Razorpay test payments', health.payments],
                 ['AI specialty guidance', health.ai],
               ].map(([label, ready]) => (

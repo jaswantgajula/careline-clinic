@@ -3,8 +3,10 @@ const { Schema, model } = mongoose;
 const userSchema = new Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, unique: true, required: true },
-    password: { type: String, required: true, select: false },
+    email: { type: String, unique: true, required: true, lowercase: true, trim: true },
+    password: { type: String, select: false },
+    googleSub: { type: String, unique: true, sparse: true, select: false },
+    avatarUrl: String,
     role: { type: String, enum: ['patient', 'doctor', 'admin'], default: 'patient' },
   },
   { timestamps: true },

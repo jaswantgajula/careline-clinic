@@ -11,6 +11,7 @@ import api from './routes/api.js';
 import { validSignature, reconcilePayments } from './services/payment.service.js';
 import { capturedPayment, releaseExpired } from './services/booking.service.js';
 import { paymentsReady } from './config/razorpay.js';
+import { googleAuthReady } from './services/googleAuth.service.js';
 import { User, Doctor, Appointment, Payment, Claim } from './models/index.js';
 const app = express();
 app.use(
@@ -18,9 +19,13 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
-        frameSrc: ['https://api.razorpay.com', 'https://checkout.razorpay.com'],
-        connectSrc: ["'self'", 'https://*.razorpay.com'],
+        scriptSrc: ["'self'", 'https://checkout.razorpay.com', 'https://accounts.google.com'],
+        frameSrc: [
+          'https://api.razorpay.com',
+          'https://checkout.razorpay.com',
+          'https://accounts.google.com',
+        ],
+        connectSrc: ["'self'", 'https://*.razorpay.com', 'https://accounts.google.com'],
         imgSrc: ["'self'", 'data:', 'https://*.razorpay.com'],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'", 'data:'],
@@ -60,6 +65,8 @@ app.get('/api/health', (req, res) =>
     database: mongoose.connection.readyState === 1,
     payments: paymentsReady(),
     ai: !!(process.env.AI_API_URL && process.env.AI_API_KEY && process.env.AI_MODEL),
+    googleAuth: googleAuthReady(),
+    googleClientId: googleAuthReady() ? process.env.GOOGLE_CLIENT_ID : null,
   }),
 );
 app.use('/api', (req, res, next) => {

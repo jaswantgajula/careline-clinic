@@ -496,6 +496,7 @@ export default function App() {
       )}
       {authModal && (
         <AuthModal
+          googleClientId={health.googleClientId}
           onClose={() => setAuthModal(false)}
           onLogin={(u) => {
             setMode('live');

@@ -20,6 +20,7 @@ Copy `backend/.env.example` to `backend/.env`, then configure the variables belo
 - `MONGODB_URI`: a MongoDB Atlas cluster or local **replica set**. Transactions are essential: a standalone MongoDB instance is insufficient.
 - `JWT_SECRET`: a random secret at least 32 characters long.
 - `APP_ORIGIN`: the exact frontend origin, e.g. `http://127.0.0.1:5173`.
+- `GOOGLE_CLIENT_ID`: a Google OAuth 2.0 Web client ID whose authorized JavaScript origins include your local and deployed frontend origins.
 - `SEED_ADMIN_PASSWORD`, `SEED_DOCTOR_PASSWORD`: choose strong passwords of at least 10 characters for fictional demo staff accounts.
 
 ```bash

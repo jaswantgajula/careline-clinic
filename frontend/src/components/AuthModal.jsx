@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
@@ -41,10 +41,63 @@ import {
   timeLabel,
 } from '../components/UI';
 import DoctorCard from '../components/DoctorCard';
-export default function AuthModal({ onClose, onLogin, onDemo }) {
+let googleScriptPromise;
+function loadGoogleIdentity() {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (!googleScriptPromise) {
+    googleScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Google sign-in could not be loaded.'));
+      document.head.appendChild(script);
+    });
+  }
+  return googleScriptPromise;
+}
+
+export default function AuthModal({ onClose, onLogin, onDemo, googleClientId }) {
   const [register, setRegister] = useState(false),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
+  const googleButton = useRef();
+
+  useEffect(() => {
+    if (!googleClientId || !googleButton.current) return;
+    let active = true;
+    loadGoogleIdentity()
+      .then(() => {
+        if (!active || !googleButton.current) return;
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async ({ credential }) => {
+            setBusy(true);
+            setError('');
+            try {
+              onLogin(await api('/auth/google', { method: 'POST', body: { credential } }));
+            } catch (e) {
+              setError(e.message);
+            } finally {
+              setBusy(false);
+            }
+          },
+        });
+        googleButton.current.replaceChildren();
+        window.google.accounts.id.renderButton(googleButton.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          shape: 'rectangular',
+          text: register ? 'signup_with' : 'signin_with',
+          width: Math.min(400, Math.max(260, googleButton.current.clientWidth)),
+        });
+      })
+      .catch((e) => active && setError(e.message));
+    return () => {
+      active = false;
+    };
+  }, [googleClientId, register, onLogin]);
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
@@ -65,6 +118,18 @@ export default function AuthModal({ onClose, onLogin, onDemo }) {
           ? 'Create your patient account to book and manage visits.'
           : 'Sign in to your Careline account.'}
       </p>
+      {googleClientId ? (
+        <>
+          <div ref={googleButton} className="google-button" aria-label="Sign in with Google" />
+          <div className="auth-divider">
+            <span>or continue with email</span>
+          </div>
+        </>
+      ) : (
+        <Notice>
+          Google sign-in will appear after the clinic configures its Google client ID.
+        </Notice>
+      )}
       <form onSubmit={submit}>
         {register && (
           <label className="field">
