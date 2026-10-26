@@ -43,7 +43,7 @@ export default function BookingModal({
     return () => {
       current = false;
     };
-  }, [date]);
+  }, [doctor?._id, date]);
   async function confirm() {
     setBusy(true);
     setError('');
@@ -83,18 +83,27 @@ export default function BookingModal({
         );
         setResult('Demo appointment confirmed. No payment was taken.');
       } else {
-        const config = await api('/appointments', {
-          method: 'POST',
-          body: { doctor: doctor._id, start: selected, reason },
-        });
-        const payment = await checkout(config, user);
-        const verified = await api('/payments/verify', { method: 'POST', body: payment });
-        onDone();
-        setResult(
-          verified.status === 'verified'
-            ? 'Payment verified. Check your appointment for confirmation.'
-            : 'Payment is processing. Your appointment will update after verification.',
-        );
+        let reservedId = null;
+        try {
+          const config = await api('/appointments', {
+            method: 'POST',
+            body: { doctor: doctor._id, start: selected, reason },
+          });
+          reservedId = config.appointment?._id;
+          const payment = await checkout(config, user);
+          const verified = await api('/payments/verify', { method: 'POST', body: payment });
+          onDone();
+          setResult(
+            verified.status === 'verified'
+              ? 'Payment verified. Check your appointment for confirmation.'
+              : 'Payment is processing. Your appointment will update after verification.',
+          );
+        } catch (checkoutErr) {
+          if (reservedId) {
+            void api(`/appointments/${reservedId}/release`, { method: 'POST' }).catch(() => {});
+          }
+          throw checkoutErr;
+        }
       }
       setStep(2);
     } catch (e) {

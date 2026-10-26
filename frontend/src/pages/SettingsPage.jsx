@@ -45,6 +45,9 @@ import PageHeading from '../components/PageHeading';
 export default function SettingsPage({ user, demo, health, onUser, onDemo, onLogin, notify }) {
   const [name, setName] = useState(user?.name || ''),
     [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (user?.name) setName(user.name);
+  }, [user?.name]);
   async function save(e) {
     e.preventDefault();
     if (demo) {

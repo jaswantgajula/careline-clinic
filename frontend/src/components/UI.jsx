@@ -34,34 +34,74 @@ export function Busy() {
   );
 }
 export function Modal({ title, children, onClose, wide = false }) {
-  const ref = useRef();
+  const modalRef = useRef();
   const closeCallback = useRef(onClose);
   closeCallback.current = onClose;
   useEffect(() => {
     const previous = document.activeElement;
-    const el = ref.current;
-    el.showModal();
-    const close = (e) => {
-      e.preventDefault();
-      closeCallback.current();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusableSelector =
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusable = () => [...(modalRef.current?.querySelectorAll(focusableSelector) || [])];
+    (focusable()[0] || modalRef.current)?.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeCallback.current?.();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const elements = focusable();
+        if (!elements.length) {
+          e.preventDefault();
+          modalRef.current?.focus();
+          return;
+        }
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
-    el.addEventListener('cancel', close);
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      el.removeEventListener('cancel', close);
-      el.close();
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
       previous?.focus();
     };
   }, []);
   return (
-    <dialog ref={ref} className={wide ? 'modal wide' : 'modal'} aria-labelledby="dialog-title">
-      <header>
-        <h2 id="dialog-title">{title}</h2>
-        <button className="icon-button" onClick={onClose} aria-label="Close dialog">
-          <X size={21} />
-        </button>
-      </header>
-      {children}
-    </dialog>
+    <div
+      className="modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeCallback.current?.();
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dialog-title"
+        tabIndex={-1}
+        className={wide ? 'modal wide' : 'modal'}
+      >
+        <header>
+          <h2 id="dialog-title">{title}</h2>
+          <button className="icon-button" onClick={onClose} aria-label="Close dialog">
+            <X size={21} />
+          </button>
+        </header>
+        {children}
+      </div>
+    </div>
   );
 }
 export function Notice({ children, error = false }) {

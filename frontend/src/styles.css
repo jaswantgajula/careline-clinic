@@ -106,19 +106,24 @@ hr {
   position: fixed;
   inset: 0 auto 0 0;
   width: 244px;
-  background: var(--navy);
-  color: #aab6cc;
+  background: #ffffff;
+  border-right: 1px solid #e3e8f2;
+  color: #495b77;
   display: flex;
   flex-direction: column;
   padding: 34px 20px 20px;
   z-index: 30;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  color: #fff;
+  color: #111d33;
   font-size: 1.85rem;
   letter-spacing: -1.4px;
   line-height: 1;
@@ -126,7 +131,8 @@ hr {
   font-family: Manrope, sans-serif;
 }
 .brand-symbol {
-  background: #3b70f4;
+  background: #3569ed;
+  color: #ffffff;
   border-radius: 12px;
   width: 40px;
   height: 43px;
@@ -134,21 +140,21 @@ hr {
   place-items: center;
 }
 .brand-period {
-  color: #82acff;
+  color: #3569ed;
 }
 .brand small {
   font-family: 'DM Sans', sans-serif;
   font-size: 9px;
   letter-spacing: 1.9px;
-  color: #9baac1;
+  color: #73849f;
   display: block;
   margin-top: 9px;
 }
 .workspace-label {
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: 1.5px;
-  color: #8c9bb6;
+  color: #7e8fa9;
   margin: 47px 16px 17px;
 }
 nav {
@@ -163,64 +169,90 @@ nav a {
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
+  color: #495b77;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 nav a:hover {
-  background: #1e3150;
-  color: #fff;
+  background: #f0f4fc;
+  color: #15243e;
 }
 nav a.active {
-  color: #fff;
+  color: #ffffff;
   background: #2c5ddd;
-  box-shadow: 0 5px 15px #07112325;
+  box-shadow: 0 5px 15px rgba(44, 93, 221, 0.22);
 }
 .ai-pill {
-  background: #ffffff17;
+  background: #eef3ff;
+  color: #2c5ddd;
   font-size: 10px;
-  border: 1px solid #ffffff15;
+  border: 1px solid #d4e2fc;
   padding: 2px 5px;
   border-radius: 4px;
   margin-left: auto;
+  font-weight: 600;
+}
+nav a.active .ai-pill {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 45px;
 }
 .clinic-card {
-  border: 1px solid #31415b;
+  border: 1px solid #d8e4f8;
   border-radius: 12px;
   padding: 17px 15px;
-  background: linear-gradient(140deg, #203352, #182841);
+  background: linear-gradient(140deg, #f3f7fe, #e7f0fd);
   margin: 0 5px 24px;
 }
 .clinic-icon {
-  color: #a4c7ff;
+  color: #2c5ddd;
   margin-bottom: 11px;
 }
 .clinic-card strong {
   font-size: 13px;
-  color: #edf3ff;
-  font-weight: 500;
+  color: #111d33;
+  font-weight: 600;
 }
 .clinic-card p {
   font-size: 12px;
   line-height: 1.6;
   margin: 7px 0 14px;
+  color: #556885;
 }
 .clinic-card > span {
   display: flex;
   gap: 5px;
   align-items: center;
   font-size: 10px;
-  color: #afbed7;
+  color: #3b6fd8;
+  font-weight: 500;
 }
 .settings-link {
   font-size: 14px;
   display: flex;
   gap: 12px;
   padding: 14px;
+  color: #495b77;
+  border-radius: 8px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.settings-link:hover {
+  background: #f0f4fc;
+  color: #15243e;
+}
+.settings-link.active {
+  background: #2c5ddd;
+  color: #ffffff;
 }
 .sidebar-user {
-  border-top: 1px solid #2b3a53;
+  border-top: 1px solid #e3e8f2;
   margin-top: 15px;
   padding: 21px 3px 0;
   display: flex;
@@ -231,7 +263,7 @@ nav a.active {
   height: 35px;
   width: 35px;
   background: #dde8fb;
-  color: #34527d;
+  color: #2c5ddd;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -242,7 +274,7 @@ nav a.active {
 .sidebar-user strong {
   display: block;
   font-size: 12px;
-  color: #f0f4ff;
+  color: #111d33;
   max-width: 138px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -250,10 +282,14 @@ nav a.active {
 }
 .sidebar-user small {
   font-size: 10px;
+  color: #73849f;
 }
 .sidebar-user .icon-button {
-  color: #aab6cc;
+  color: #73849f;
   padding: 4px;
+}
+.sidebar-user .icon-button:hover {
+  color: #111d33;
 }
 .main-shell {
   margin-left: 244px;
@@ -1277,22 +1313,36 @@ td {
   font-weight: 400;
   font-size: 13px;
 }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #0f1e3a80;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
 .modal {
+  position: relative;
+  background: #ffffff;
   border: 0;
   border-radius: 17px;
   box-shadow: 0 24px 100px #0f204244;
   padding: 28px;
   width: min(470px, calc(100vw - 30px));
   max-height: 90vh;
+  overflow-y: auto;
   color: #3b4d69;
   animation: modal-in 0.2s ease;
+  box-sizing: border-box;
 }
 .modal.wide {
   width: min(620px, calc(100vw - 30px));
-}
-.modal::backdrop {
-  background: #0f1e3a80;
-  backdrop-filter: blur(5px);
 }
 .modal > header {
   display: flex;
@@ -2221,4 +2271,304 @@ td {
   .next-details {
     font-size: 13px;
   }
+}
+.theme-toggle {
+  display: inline-flex;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  font-size: 12px;
+}
+.theme-toggle:hover {
+  background: #edf2fb;
+}
+:root[data-theme='dark'],
+html[data-theme='dark'],
+body[data-theme='dark'] {
+  background: #111827;
+  color-scheme: dark;
+}
+.app[data-theme='dark'] {
+  --blue: #83a8ff;
+  --navy: #111b2c;
+  --border: #303c50;
+  --muted: #a6b4c8;
+  background: #111827;
+  color: #d9e2ef;
+  color-scheme: dark;
+}
+.app[data-theme='dark'] .sidebar {
+  background: #111b2c;
+  border-right-color: #223044;
+  color: #aab6cc;
+}
+.app[data-theme='dark'] .brand {
+  color: #ffffff;
+}
+.app[data-theme='dark'] .brand-period {
+  color: #82acff;
+}
+.app[data-theme='dark'] .brand small {
+  color: #9baac1;
+}
+.app[data-theme='dark'] .workspace-label {
+  color: #8c9bb6;
+}
+.app[data-theme='dark'] nav a {
+  color: #aab6cc;
+}
+.app[data-theme='dark'] nav a:hover {
+  background: #1e3150;
+  color: #ffffff;
+}
+.app[data-theme='dark'] nav a.active {
+  color: #ffffff;
+  background: #2c5ddd;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35);
+}
+.app[data-theme='dark'] .ai-pill {
+  background: #ffffff17;
+  color: #c4d7fc;
+  border-color: #ffffff1f;
+}
+.app[data-theme='dark'] nav a.active .ai-pill {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.app[data-theme='dark'] .clinic-card {
+  border-color: #31415b;
+  background: linear-gradient(140deg, #203352, #182841);
+}
+.app[data-theme='dark'] .clinic-icon {
+  color: #a4c7ff;
+}
+.app[data-theme='dark'] .clinic-card strong {
+  color: #edf3ff;
+}
+.app[data-theme='dark'] .clinic-card p {
+  color: #aab6cc;
+}
+.app[data-theme='dark'] .clinic-card > span {
+  color: #afbed7;
+}
+.app[data-theme='dark'] .settings-link {
+  color: #aab6cc;
+}
+.app[data-theme='dark'] .settings-link:hover {
+  background: #1e3150;
+  color: #ffffff;
+}
+.app[data-theme='dark'] .settings-link.active {
+  background: #2c5ddd;
+  color: #ffffff;
+}
+.app[data-theme='dark'] .sidebar-user {
+  border-top-color: #2b3a53;
+}
+.app[data-theme='dark'] .user-avatar {
+  background: #dde8fb;
+  color: #34527d;
+}
+.app[data-theme='dark'] .sidebar-user strong {
+  color: #f0f4ff;
+}
+.app[data-theme='dark'] .sidebar-user small {
+  color: #8c9bb6;
+}
+.app[data-theme='dark'] .sidebar-user .icon-button {
+  color: #aab6cc;
+}
+.app[data-theme='dark'] .sidebar-user .icon-button:hover {
+  color: #ffffff;
+}
+.app[data-theme='dark'] h1,
+.app[data-theme='dark'] h2,
+.app[data-theme='dark'] h3,
+.app[data-theme='dark'] .breadcrumb strong,
+.app[data-theme='dark'] .stat-card strong,
+.app[data-theme='dark'] .next-doctor h2,
+.app[data-theme='dark'] .name-link,
+.app[data-theme='dark'] .doctor-bottom strong,
+.app[data-theme='dark'] .result-count,
+.app[data-theme='dark'] .appointment-info h3,
+.app[data-theme='dark'] .appointment-date strong,
+.app[data-theme='dark'] .empty h3,
+.app[data-theme='dark'] .assistant-aside strong,
+.app[data-theme='dark'] .table-doctor strong,
+.app[data-theme='dark'] .booking-doctor > strong,
+.app[data-theme='dark'] .review-box strong,
+.app[data-theme='dark'] .total strong,
+.app[data-theme='dark'] .profile-facts strong {
+  color: #e8eef7;
+}
+.app[data-theme='dark'] .topbar,
+.app[data-theme='dark'] .stat-card,
+.app[data-theme='dark'] .next-card,
+.app[data-theme='dark'] .doctor-card,
+.app[data-theme='dark'] .search-input,
+.app[data-theme='dark'] .sort-control select,
+.app[data-theme='dark'] .filter-chips button,
+.app[data-theme='dark'] .panel,
+.app[data-theme='dark'] .appointment-card,
+.app[data-theme='dark'] .field input,
+.app[data-theme='dark'] .field select,
+.app[data-theme='dark'] .field textarea,
+.app[data-theme='dark'] .weekday-picker button,
+.app[data-theme='dark'] .modal,
+.app[data-theme='dark'] .slot,
+.app[data-theme='dark'] .role-select select {
+  background-color: #1b2636;
+  color: #d9e2ef;
+  border-color: #303c50;
+}
+.app[data-theme='dark'] .theme-toggle {
+  background: #1b2636;
+  color: #d9e2ef;
+  border-color: #303c50;
+}
+.app[data-theme='dark'] .theme-toggle:hover {
+  background: #263449;
+}
+.app[data-theme='dark'] .breadcrumb,
+.app[data-theme='dark'] .today,
+.app[data-theme='dark'] .role-select,
+.app[data-theme='dark'] .section-label > span:first-child,
+.app[data-theme='dark'] .next-details,
+.app[data-theme='dark'] .sort-control,
+.app[data-theme='dark'] .filter-chips button,
+.app[data-theme='dark'] .appointment-info,
+.app[data-theme='dark'] .field,
+.app[data-theme='dark'] .checkbox,
+.app[data-theme='dark'] .weekday-picker button,
+.app[data-theme='dark'] td,
+.app[data-theme='dark'] .modal,
+.app[data-theme='dark'] .summary-row,
+.app[data-theme='dark'] .profile-facts span {
+  color: #bdc9d9;
+}
+.app[data-theme='dark'] .muted,
+.app[data-theme='dark'] .page-heading p,
+.app[data-theme='dark'] .next-doctor p,
+.app[data-theme='dark'] .next-doctor > div > span,
+.app[data-theme='dark'] .next-footer > span,
+.app[data-theme='dark'] .section-heading p,
+.app[data-theme='dark'] .doctor-meta,
+.app[data-theme='dark'] .qualification,
+.app[data-theme='dark'] .doctor-bottom > div > span,
+.app[data-theme='dark'] .appointment-info p,
+.app[data-theme='dark'] .appointment-id,
+.app[data-theme='dark'] .assistant-aside p,
+.app[data-theme='dark'] .integration-list,
+.app[data-theme='dark'] .modal-footer > span,
+.app[data-theme='dark'] .policy,
+.app[data-theme='dark'] .booking-doctor p,
+.app[data-theme='dark'] .stepper,
+.app[data-theme='dark'] .label-row span,
+.app[data-theme='dark'] .review-box span,
+.app[data-theme='dark'] .auth-switch,
+.app[data-theme='dark'] .character-count {
+  color: #9eacc0;
+}
+.app[data-theme='dark'] .topbar,
+.app[data-theme='dark'] .stat-card,
+.app[data-theme='dark'] .next-card,
+.app[data-theme='dark'] .doctor-card,
+.app[data-theme='dark'] .panel,
+.app[data-theme='dark'] .appointment-card,
+.app[data-theme='dark'] .search-input,
+.app[data-theme='dark'] .filter-chips button,
+.app[data-theme='dark'] .field input,
+.app[data-theme='dark'] .field select,
+.app[data-theme='dark'] .field textarea,
+.app[data-theme='dark'] .modal,
+.app[data-theme='dark'] .weekday-picker button,
+.app[data-theme='dark'] .slot,
+.app[data-theme='dark'] .booking-doctor,
+.app[data-theme='dark'] .appointment-date,
+.app[data-theme='dark'] .review-box,
+.app[data-theme='dark'] .profile-facts,
+.app[data-theme='dark'] th {
+  border-color: #303c50;
+}
+.app[data-theme='dark'] .next-details,
+.app[data-theme='dark'] .appointment-date,
+.app[data-theme='dark'] .field input:disabled,
+.app[data-theme='dark'] .booking-doctor,
+.app[data-theme='dark'] .empty-slots,
+.app[data-theme='dark'] .review-box,
+.app[data-theme='dark'] .profile-facts,
+.app[data-theme='dark'] th {
+  background: #202d40;
+}
+.app[data-theme='dark'] .demo-banner,
+.app[data-theme='dark'] .help-strip,
+.app[data-theme='dark'] .assistant-card,
+.app[data-theme='dark'] .mini-illustration,
+.app[data-theme='dark'] .care-note,
+.app[data-theme='dark'] .filter-chips button.active,
+.app[data-theme='dark'] .weekday-picker .selected,
+.app[data-theme='dark'] .slot.selected,
+.app[data-theme='dark'] .subtle {
+  background: #22324c;
+  border-color: #344966;
+  color: #b9cefa;
+}
+.app[data-theme='dark'] .assistant-card:after {
+  opacity: 0.12;
+}
+.app[data-theme='dark'] .care-note strong,
+.app[data-theme='dark'] .help-strip strong,
+.app[data-theme='dark'] .table-doctor strong {
+  color: #cfddf3;
+}
+.app[data-theme='dark'] .care-note p,
+.app[data-theme='dark'] .assistant-card p,
+.app[data-theme='dark'] .assistant-card small,
+.app[data-theme='dark'] .help-strip p {
+  color: #a7b8d1;
+}
+.app[data-theme='dark'] .search-input input,
+.app[data-theme='dark'] .field input::placeholder,
+.app[data-theme='dark'] .field textarea::placeholder {
+  color: #bdc9d9;
+}
+.app[data-theme='dark'] .doctor-bottom,
+.app[data-theme='dark'] .integration-list > div,
+.app[data-theme='dark'] .next-footer,
+.app[data-theme='dark'] .modal > header,
+.app[data-theme='dark'] .modal-footer {
+  border-color: #303c50;
+}
+.app[data-theme='dark'] .appointment-date strong {
+  color: #d7e3f5;
+}
+.app[data-theme='dark'] .badge {
+  background: #293b59;
+  color: #bdcff4;
+}
+.app[data-theme='dark'] .badge.green {
+  background: #1e3b36;
+  color: #91d3bd;
+}
+.app[data-theme='dark'] .badge.red {
+  background: #442b35;
+  color: #f0a7b1;
+}
+.app[data-theme='dark'] .badge.neutral {
+  background: #303a4a;
+  color: #c0cada;
+}
+.app[data-theme='dark'] .field input:disabled {
+  color: #9eacc0;
+}
+@media (max-width: 650px) {
+  .theme-toggle span {
+    display: none;
+  }
+}
+.razorpay-container,
+.razorpay-checkout-frame {
+  z-index: 2147483647 !important;
 }

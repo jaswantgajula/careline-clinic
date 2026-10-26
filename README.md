@@ -1,6 +1,6 @@
 # Careline Clinic
 
-A MERN appointment scheduler for one clinic with multiple doctors. Includes a responsive patient portal, doctor workspace, admin tools, Razorpay **test-mode** checkout and an optional AI specialty finder.
+A MERN appointment scheduler for one clinic with multiple doctors. Includes responsive light and dark themes, a patient portal, doctor workspace, admin tools, Razorpay **test-mode** checkout and an optional AI specialty finder.
 
 ## Run the preview
 
@@ -33,7 +33,7 @@ The seed is additive and preserves existing records. Administrator: `admin@carel
 
 Set `RAZORPAY_KEY_ID` (must start with `rzp_test_`), `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`. Use Razorpay's test dashboard, configure automatic capture, and register an HTTPS webhook at `/api/payments/webhook` for `payment.captured` and `order.paid`. Local webhooks need an HTTPS tunnel; register the deployed endpoint when publishing.
 
-The backend calculates fees, creates orders, checks payment signatures and verifies captured amount/currency. Verified webhooks and a 30-second reconciliation worker recover missed browser callbacks. Duplicate captures are idempotent. Expired or cancelled reservations cannot be revived by a late payment; these payments enter the refund queue. Refunds remain pending until Razorpay reports `processed`.
+The backend calculates fees, creates orders, checks payment signatures and verifies captured amount/currency. Verified webhooks and a 30-second reconciliation worker recover missed browser callbacks. Duplicate captures are idempotent. Closing checkout releases its temporary slot immediately when possible; the normal 10-minute expiry remains the fallback. Expired or cancelled reservations cannot be revived by a late payment, and these payments enter the refund queue. Refunds remain pending until Razorpay reports `processed`.
 
 Run **one API process** with the current in-process reconciliation worker. Before scaling horizontally, move refund processing to a durable queue with distributed coordination. Test-mode gateway transactions and refunds still need end-to-end verification using your Razorpay account.
 
@@ -48,6 +48,7 @@ The assistant provides specialty guidance, not diagnosis or prescriptions. It ca
 - 30-minute appointments, up to 30 days ahead; all clinic times use Asia/Kolkata.
 - 10-minute slot reservation during payment.
 - Patients may cancel or reschedule until two hours before the visit.
+- Doctors and administrators may cancel clinic-side appointments and trigger the full test-refund workflow.
 - Eligible patient cancellations and clinic cancellations receive full test refunds.
 - Same-doctor rescheduling carries over the original fee and payment; changing doctors requires cancelling and rebooking.
 - Failed rescheduling leaves the original appointment untouched.

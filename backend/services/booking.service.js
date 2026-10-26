@@ -75,10 +75,14 @@ export async function cancel(id, user) {
   return transaction(async (session) => {
     const a = await Appointment.findById(id).session(session);
     if (!a) throw fail('Appointment not found.', 404);
-    if (user.role !== 'admin' && String(a.patient) !== String(user._id))
+    if (user.role === 'doctor') {
+      const doc = await Doctor.findOne({ user: user._id }).session(session);
+      if (!doc || String(a.doctor) !== String(doc._id)) throw fail('Access denied.', 403);
+    } else if (user.role !== 'admin' && String(a.patient) !== String(user._id)) {
       throw fail('Access denied.', 403);
+    }
     if (a.status !== 'confirmed') throw fail('Only confirmed appointments can be cancelled.');
-    if (user.role !== 'admin' && !canChange(a.start))
+    if (user.role === 'patient' && !canChange(a.start))
       throw fail('Cancellation closes two hours before the visit.');
     a.status = 'cancelled';
     await a.save({ session });

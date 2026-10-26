@@ -1,18 +1,20 @@
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 const children = [
   spawn(process.execPath, ['--watch', '--env-file-if-exists=.env', 'index.js'], {
-    cwd: new URL('../backend/', import.meta.url),
+    cwd: fileURLToPath(new URL('../backend/', import.meta.url)),
     stdio: 'inherit',
   }),
   spawn(
     process.execPath,
     [
-      new URL('../node_modules/vite/bin/vite.js', import.meta.url).pathname,
+      fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)),
       '--host',
       '127.0.0.1',
       '--strictPort',
     ],
-    { cwd: new URL('../frontend/', import.meta.url), stdio: 'inherit' },
+    { cwd: fileURLToPath(new URL('../frontend/', import.meta.url)), stdio: 'inherit' },
   ),
 ];
 let stopping = false;

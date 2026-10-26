@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import api from './routes/api.js';
 import { validSignature, reconcilePayments } from './services/payment.service.js';
@@ -65,23 +66,34 @@ app.use('/api', (req, res, next) => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.get('origin');
     const allowed = [process.env.APP_ORIGIN || 'http://localhost:5173'];
-    if (process.env.NODE_ENV !== 'production') allowed.push('http://127.0.0.1:5173');
-    if (!origin || !allowed.includes(origin))
+    if (process.env.NODE_ENV !== 'production') {
+      allowed.push('http://127.0.0.1:5173', 'http://localhost:4000', 'http://127.0.0.1:4000');
+    }
+    if (origin && !allowed.includes(origin))
       return res.status(403).json({ message: 'Request origin is not allowed.' });
   }
   if (mongoose.connection.readyState !== 1)
-    return res
-      .status(503)
-      .json({
-        message: 'Connect MongoDB to use accounts and bookings. The demo remains available.',
-      });
+    return res.status(503).json({
+      message: 'Connect MongoDB to use accounts and bookings. The demo remains available.',
+    });
   next();
 });
 app.use('/api', api);
 app.use('/api', (req, res) => res.status(404).json({ message: 'Endpoint not found.' }));
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../frontend/dist');
 app.use(express.static(dist));
-app.get('/{*splat}', (req, res) => res.sendFile(path.join(dist, 'index.html')));
+app.get('/{*splat}', (req, res) => {
+  const indexFile = path.join(dist, 'index.html');
+  if (fs.existsSync(indexFile)) {
+    res.sendFile(indexFile);
+  } else {
+    res
+      .status(200)
+      .send(
+        'Careline API is running. Build frontend with `npm run build` to serve the web application.',
+      );
+  }
+});
 app.use((err, req, res, next) => {
   if (err instanceof ZodError)
     return res.status(400).json({ message: err.issues.map((x) => x.message).join(' ') });

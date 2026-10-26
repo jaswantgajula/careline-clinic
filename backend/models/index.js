@@ -66,11 +66,12 @@ export const Payment = model(
       paymentId: { type: String, unique: true, sparse: true },
       status: {
         type: String,
-        enum: ['created', 'paid', 'refund-pending', 'refunded'],
+        enum: ['created', 'paid', 'refund-pending', 'refunded', 'failed'],
         default: 'created',
       },
       refundId: String,
       refundError: String,
+      refundAttempts: { type: Number, default: 0 },
       lastCheckedAt: { type: Date, default: () => new Date(0) },
     },
     { timestamps: true },

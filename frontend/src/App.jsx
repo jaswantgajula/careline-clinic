@@ -34,6 +34,8 @@ import {
   Phone,
   Info,
   ChevronDown,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { api } from './services/api';
 import {
@@ -84,8 +86,13 @@ export default function App() {
     [authModal, setAuthModal] = useState(false),
     [toast, setToast] = useState(''),
     [mobile, setMobile] = useState(false),
+    [theme, setTheme] = useStored('careline-theme-v1', () => 'light'),
     [loadError, setLoadError] = useState('');
   const demo = mode === 'demo';
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.style.backgroundColor = theme === 'dark' ? '#111827' : '#f4f7fb';
+  }, [theme]);
   const currentUser = demo
     ? {
         ...demoUser,
@@ -103,7 +110,7 @@ export default function App() {
   const allBookings = demo ? demoBookings : bookings;
   const visibleBookings =
     demo && role === 'doctor'
-      ? allBookings.filter((a) => a.doctor._id === demoDoctors[0]._id)
+      ? allBookings.filter((a) => a.doctor?._id === demoDoctors[0]?._id)
       : allBookings;
   async function refresh() {
     try {
@@ -202,7 +209,7 @@ export default function App() {
     notify: setToast,
   };
   return (
-    <div className="app">
+    <div className="app" data-theme={theme}>
       <aside className={`sidebar ${mobile ? 'open' : ''}`}>
         <Link to="/" className="brand" onClick={() => setMobile(false)}>
           <span className="brand-symbol">
@@ -296,6 +303,16 @@ export default function App() {
             </strong>
           </div>
           <div className="top-actions">
+            <button
+              type="button"
+              className="icon-button theme-toggle"
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              aria-pressed={theme === 'dark'}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            >
+              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
             <span className="today">
               <CalendarDays size={15} />
               {dateLabel(new Date())}

@@ -86,7 +86,9 @@ export default function Overview({ user, doctors, bookings, onBook, onProfile, d
           ],
           [
             patient ? Stethoscope : Wallet,
-            patient ? new Set(bookings.map((a) => a.doctor._id)).size : money(total),
+            patient
+              ? new Set(bookings.map((a) => a.doctor?._id).filter(Boolean)).size
+              : money(total),
             patient ? 'Your care team' : 'Collected consultation fees',
             'violet',
           ],
@@ -111,10 +113,10 @@ export default function Overview({ user, doctors, bookings, onBook, onProfile, d
           {next ? (
             <>
               <div className="next-doctor">
-                <Avatar doctor={next.doctor} large />
+                <Avatar doctor={next.doctor || { name: 'Doctor', color: 'blue' }} large />
                 <div>
-                  <h2>{next.doctor.name}</h2>
-                  <p>{next.doctor.specialty}</p>
+                  <h2>{next.doctor?.name || 'Assigned Specialist'}</h2>
+                  <p>{next.doctor?.specialty || 'General Consultation'}</p>
                   <span>In-person consultation</span>
                 </div>
               </div>

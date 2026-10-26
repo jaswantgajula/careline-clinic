@@ -50,7 +50,10 @@ export default function Schedule({ demo, doctor, bookings, onSave, notify }) {
   useEffect(() => {
     if (!demo)
       api('/doctor/profile')
-        .then(setForm)
+        .then((doc) => {
+          if (!doc) setError('Doctor profile not found. Please contact the clinic administrator.');
+          else setForm(doc);
+        })
         .catch((e) => setError(e.message));
   }, []);
   async function save(e) {
@@ -114,9 +117,9 @@ export default function Schedule({ demo, doctor, bookings, onSave, notify }) {
         description="Set your weekly schedule and plan time away."
       />
       {error && <Notice error>{error}</Notice>}
-      {!form ? (
+      {!form && !error ? (
         <Busy />
-      ) : (
+      ) : form ? (
         <form className="panel schedule-panel" onSubmit={save}>
           <h2>Weekly working hours</h2>
           <p className="muted">All times are in IST. Appointments last 30 minutes.</p>
@@ -209,7 +212,7 @@ export default function Schedule({ demo, doctor, bookings, onSave, notify }) {
             </button>
           </footer>
         </form>
-      )}
+      ) : null}
     </>
   );
 }

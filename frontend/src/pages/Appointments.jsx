@@ -57,7 +57,9 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
           (tab === 'Upcoming' && ['pending', 'confirmed'].includes(a.status)) ||
           (tab === 'Past' && ['completed', 'no-show'].includes(a.status)) ||
           (tab === 'Cancelled' && ['cancelled', 'expired'].includes(a.status))) &&
-        `${a.doctor.name} ${a.patient?.name || ''}`.toLowerCase().includes(search.toLowerCase()),
+        `${a.doctor?.name || 'Doctor'} ${a.patient?.name || ''}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
     )
     .sort((a, b) => new Date(a.start) - new Date(b.start));
   async function cancelVisit() {
@@ -155,11 +157,11 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
                     })}
                   </span>
                 </div>
-                <Avatar doctor={a.doctor} />
+                <Avatar doctor={a.doctor || { name: 'Doctor', color: 'blue' }} />
                 <div className="appointment-info">
-                  <h3>{a.doctor.name}</h3>
+                  <h3>{a.doctor?.name || 'Assigned Specialist'}</h3>
                   <p>
-                    {role === 'patient' ? a.doctor.specialty : a.patient?.name}
+                    {role === 'patient' ? a.doctor?.specialty || 'General' : a.patient?.name}
                     <span> · </span>
                     {timeLabel(a.start)} IST
                   </p>
@@ -187,7 +189,7 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
                       Reschedule
                     </button>
                   )}
-                  {((role === 'admin' && a.status === 'confirmed') ||
+                  {(((role === 'admin' || role === 'doctor') && a.status === 'confirmed') ||
                     (role === 'patient' && changeable)) && (
                     <button
                       className="text-link danger"
@@ -224,10 +226,10 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
       {detail && (
         <Modal title="Appointment details" onClose={() => setDetail(null)}>
           <div className="booking-doctor">
-            <Avatar doctor={detail.doctor} />
+            <Avatar doctor={detail.doctor || { name: 'Doctor', color: 'blue' }} />
             <div>
-              <h3>{detail.doctor.name}</h3>
-              <p>{detail.doctor.specialty}</p>
+              <h3>{detail.doctor?.name || 'Assigned Specialist'}</h3>
+              <p>{detail.doctor?.specialty || 'General Consultation'}</p>
             </div>
           </div>
           <div className="review-box">
@@ -270,8 +272,8 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
       {cancelTarget && (
         <Modal title="Cancel this appointment?" onClose={() => !busy && setCancelTarget(null)}>
           <p>
-            Your visit with {cancelTarget.doctor.name} on {dateLabel(cancelTarget.start)} will be
-            cancelled.
+            Your visit with {cancelTarget.doctor?.name || 'your specialist'} on{' '}
+            {dateLabel(cancelTarget.start)} will be cancelled.
           </p>
           <Notice>
             A full {demo ? 'simulated' : 'test'} refund of {money(cancelTarget.fee)} will be

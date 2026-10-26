@@ -13,7 +13,17 @@ export async function reconcilePayments() {
   busy = true;
   try {
     const gateway = razorpay();
-    for (const p of await Payment.find({ status: 'created', orderId: { $exists: true } })
+    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    // Mark old uncaptured payments whose hold expired as failed so we don't query gateway forever
+    await Payment.updateMany(
+      { status: 'created', createdAt: { $lt: cutoff } },
+      { $set: { status: 'failed' } },
+    );
+    for (const p of await Payment.find({
+      status: 'created',
+      orderId: { $exists: true },
+      createdAt: { $gte: cutoff },
+    })
       .sort({ lastCheckedAt: 1 })
       .limit(100)) {
       try {
@@ -26,10 +36,14 @@ export async function reconcilePayments() {
         await Payment.updateOne({ _id: p._id }, { $set: { lastCheckedAt: new Date() } });
       }
     }
-    for (const p of await Payment.find({ status: 'refund-pending' })
+    for (const p of await Payment.find({
+      status: 'refund-pending',
+      refundAttempts: { $lt: 5 },
+    })
       .sort({ updatedAt: 1 })
       .limit(100)) {
       try {
+        p.refundAttempts = (p.refundAttempts || 0) + 1;
         // Reuse an existing refund after a timeout or process restart.
         const existing = await gateway.payments.fetchMultipleRefund(p.paymentId, { count: 100 });
         let refund = existing.items.find(
@@ -45,7 +59,10 @@ export async function reconcilePayments() {
         if (refund.status === 'processed') p.status = 'refunded';
         await p.save();
       } catch (e) {
-        p.refundError = 'Refund could not be completed; retry scheduled.';
+        p.refundError =
+          p.refundAttempts >= 5
+            ? 'Refund requires manual review after maximum automated retries.'
+            : 'Refund could not be completed; retry scheduled.';
         await p.save();
         console.error('Refund retry:', e.message);
       }

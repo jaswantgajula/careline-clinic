@@ -1,9 +1,7 @@
 import Razorpay from 'razorpay';
 export function paymentsReady() {
   return !!(
-    process.env.RAZORPAY_KEY_ID?.startsWith('rzp_test_') &&
-    process.env.RAZORPAY_KEY_SECRET &&
-    process.env.RAZORPAY_WEBHOOK_SECRET
+    process.env.RAZORPAY_KEY_ID?.startsWith('rzp_test_') && process.env.RAZORPAY_KEY_SECRET
   );
 }
 export function razorpay() {

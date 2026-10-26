@@ -149,6 +149,53 @@ test('cancellation enforces ownership, queues refund and frees slot', async () =
   assert.equal(await Claim.countDocuments(), 0);
   await assert.rejects(cancel(appointment._id, { _id: patient, role: 'patient' }));
 });
+test("doctor can cancel their own booking but not another doctor's booking", async () => {
+  const staff = await User.create({
+    name: 'Doctor Owner',
+    email: 'owner@example.test',
+    password: await bcrypt.hash('TestPassword123!', 4),
+    role: 'doctor',
+  });
+  doctor.user = staff._id;
+  await doctor.save();
+  const { appointment, payment } = await paidBooking();
+
+  await cancel(appointment._id, { _id: staff._id, role: 'doctor' });
+  assert.equal((await Appointment.findById(appointment._id)).status, 'cancelled');
+  assert.equal((await Payment.findById(payment._id)).status, 'refund-pending');
+  assert.equal(await Claim.countDocuments({ appointment: appointment._id }), 0);
+
+  const otherStaff = await User.create({
+    name: 'Other Doctor',
+    email: 'other-doctor@example.test',
+    password: await bcrypt.hash('TestPassword123!', 4),
+    role: 'doctor',
+  });
+  const otherDoctor = await Doctor.create({
+    user: otherStaff._id,
+    name: 'Other doctor',
+    fee: 700,
+    days: [0, 1, 2, 3, 4, 5, 6],
+    start: 9,
+    end: 17,
+    breakStart: 13,
+    breakEnd: 14,
+    leave: [],
+  });
+  const foreign = await reserve(patient, otherDoctor._id, at('11'), 'Test');
+  foreign.payment.orderId = `order_${foreign.payment._id}`;
+  await foreign.payment.save();
+  await capturedPayment({
+    order_id: foreign.payment.orderId,
+    id: `pay_${foreign.payment._id}`,
+    status: 'captured',
+    amount: 70000,
+    currency: 'INR',
+  });
+  await assert.rejects(cancel(foreign.appointment._id, { _id: staff._id, role: 'doctor' }), {
+    status: 403,
+  });
+});
 test('past times and off-grid appointment times are rejected', async () => {
   await assert.rejects(reserve(patient, doctor._id, at('10', -1), ''));
   await assert.rejects(reserve(patient, doctor._id, at('10').replace(':00:00', ':15:00'), ''));
@@ -198,6 +245,50 @@ test('registration hashes passwords, ignores role injection and enforces authori
     body: { name: 'Changed' },
   });
   assert.equal(r.status, 403);
+});
+test('patient can release only their own pending checkout reservation', async () => {
+  const password = 'TestPassword123!';
+  const patientUser = await User.create({
+    _id: patient,
+    name: 'Checkout Patient',
+    email: 'checkout@example.test',
+    password: await bcrypt.hash(password, 4),
+    role: 'patient',
+  });
+  const otherUser = await User.create({
+    _id: other,
+    name: 'Other Patient',
+    email: 'other-patient@example.test',
+    password: await bcrypt.hash(password, 4),
+    role: 'patient',
+  });
+  const pending = await reserve(patientUser._id, doctor._id, at('10'), 'Test');
+
+  let r = await request('/auth/login', {
+    method: 'POST',
+    body: { email: otherUser.email, password },
+  });
+  const otherCookie = r.headers.get('set-cookie').split(';')[0];
+  r = await request(`/appointments/${pending.appointment._id}/release`, {
+    method: 'POST',
+    cookie: otherCookie,
+  });
+  assert.equal(r.status, 200);
+  assert.equal((await Appointment.findById(pending.appointment._id)).status, 'pending');
+  assert.equal(await Claim.countDocuments({ appointment: pending.appointment._id }), 2);
+
+  r = await request('/auth/login', {
+    method: 'POST',
+    body: { email: patientUser.email, password },
+  });
+  const ownerCookie = r.headers.get('set-cookie').split(';')[0];
+  r = await request(`/appointments/${pending.appointment._id}/release`, {
+    method: 'POST',
+    cookie: ownerCookie,
+  });
+  assert.equal(r.status, 200);
+  assert.equal((await Appointment.findById(pending.appointment._id)).status, 'expired');
+  assert.equal(await Claim.countDocuments({ appointment: pending.appointment._id }), 0);
 });
 test('doctor schedule rejects changes that displace existing bookings', async () => {
   const staff = await User.create({
