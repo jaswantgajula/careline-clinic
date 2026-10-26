@@ -44,10 +44,16 @@ import DoctorCard from '../components/DoctorCard';
 import PageHeading from '../components/PageHeading';
 export default function SettingsPage({ user, demo, health, onUser, onDemo, onLogin, notify }) {
   const [name, setName] = useState(user?.name || ''),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [preferences, setPreferences] = useState(
+      user?.notificationPreferences || { inApp: true, email: true, reminders: true },
+    );
   useEffect(() => {
     if (user?.name) setName(user.name);
   }, [user?.name]);
+  useEffect(() => {
+    if (user?.notificationPreferences) setPreferences(user.notificationPreferences);
+  }, [user?.notificationPreferences]);
   async function save(e) {
     e.preventDefault();
     if (demo) {
@@ -63,6 +69,19 @@ export default function SettingsPage({ user, demo, health, onUser, onDemo, onLog
       notify(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+  async function savePreferences(next) {
+    setPreferences(next);
+    if (demo) {
+      notify('Notification preferences updated for this preview.');
+      return;
+    }
+    try {
+      await api('/notifications/preferences', { method: 'PATCH', body: next });
+      notify('Notification preferences updated.');
+    } catch (e) {
+      notify(e.message);
     }
   }
   return (
@@ -134,6 +153,33 @@ export default function SettingsPage({ user, demo, health, onUser, onDemo, onLog
             </button>
           )}
         </section>
+        {user && (
+          <section className="panel notification-settings">
+            <h2>Notifications</h2>
+            <p className="muted">
+              Choose how Careline keeps you informed about appointments and waitlist offers.
+            </p>
+            {[
+              ['inApp', 'In-app updates', 'Queue changes, payments and waitlist offers'],
+              ['reminders', 'Appointment reminders', 'A reminder before your scheduled visit'],
+              ['email', 'Email copies', 'Used when a clinic email provider is connected'],
+            ].map(([key, label, description]) => (
+              <label className="preference-row" key={key}>
+                <span>
+                  <strong>{label}</strong>
+                  <small>{description}</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={preferences[key]}
+                  onChange={(event) =>
+                    savePreferences({ ...preferences, [key]: event.target.checked })
+                  }
+                />
+              </label>
+            ))}
+          </section>
+        )}
       </div>
     </>
   );

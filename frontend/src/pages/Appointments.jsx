@@ -26,6 +26,10 @@ import {
   Phone,
   Info,
   ChevronDown,
+  Download,
+  LogIn,
+  Play,
+  History,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { daysAhead, dateKey } from '../services/demo';
@@ -47,6 +51,7 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
     [search, setSearch] = useState(''),
     [detail, setDetail] = useState(null),
     [cancelTarget, setCancelTarget] = useState(null),
+    [auditTrail, setAuditTrail] = useState([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const role = user?.role || 'patient';
@@ -54,7 +59,10 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
     .filter(
       (a) =>
         (tab === 'All' ||
-          (tab === 'Upcoming' && ['pending', 'confirmed'].includes(a.status)) ||
+          (tab === 'Upcoming' &&
+            ['pending', 'confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(
+              a.status,
+            )) ||
           (tab === 'Past' && ['completed', 'no-show'].includes(a.status)) ||
           (tab === 'Cancelled' && ['cancelled', 'expired'].includes(a.status))) &&
         `${a.doctor?.name || 'Doctor'} ${a.patient?.name || ''}`
@@ -101,6 +109,71 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
       notify(e.message);
     }
   }
+  async function openDetail(a) {
+    setDetail(a);
+    if (demo) {
+      setAuditTrail([
+        {
+          _id: 'created',
+          action: 'appointment-reserved',
+          toStatus: 'pending',
+          createdAt: new Date(new Date(a.start).getTime() - 86400000).toISOString(),
+          actor: { name: a.patient?.name || user?.name, role: 'patient' },
+        },
+        ...(a.status !== 'pending'
+          ? [
+              {
+                _id: 'confirmed',
+                action: 'payment-captured',
+                fromStatus: 'pending',
+                toStatus: 'confirmed',
+                createdAt: new Date(new Date(a.start).getTime() - 82800000).toISOString(),
+                actor: { name: a.patient?.name || user?.name, role: 'patient' },
+              },
+            ]
+          : []),
+      ]);
+    } else {
+      try {
+        setAuditTrail(await api(`/appointments/${a._id}/audit`));
+      } catch {
+        setAuditTrail([]);
+      }
+    }
+  }
+  async function checkIn(a) {
+    try {
+      if (demo) onUpdate({ ...a, status: 'checked-in', checkedInAt: new Date().toISOString() });
+      else {
+        await api(`/appointments/${a._id}/check-in`, { method: 'POST' });
+        onUpdate();
+      }
+      notify('You’re checked in. The care team has been notified.');
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  function calendarHref(a) {
+    if (!demo) return `/api/appointments/${a._id}/calendar.ics`;
+    const stamp = (value) =>
+      new Date(value)
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}Z$/, 'Z');
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      `UID:${a._id}@careline.demo`,
+      `DTSTART:${stamp(a.start)}`,
+      `DTEND:${stamp(new Date(new Date(a.start).getTime() + 1800000))}`,
+      `SUMMARY:Consultation with ${a.doctor?.name || 'Careline doctor'}`,
+      'LOCATION:Careline Clinic',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ];
+    return `data:text/calendar;charset=utf-8,${encodeURIComponent(lines.join('\r\n'))}`;
+  }
   return (
     <>
       <PageHeading
@@ -116,6 +189,29 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
           ) : null
         }
       />
+      {(role === 'doctor' || role === 'admin') && (
+        <section className="queue-board">
+          <div className="queue-board-heading">
+            <div>
+              <span className="live-dot" /> LIVE CLINIC QUEUE
+            </div>
+            <small>Updates appear automatically for connected accounts</small>
+          </div>
+          <div className="queue-stages">
+            {[
+              ['Arrived', 'checked-in'],
+              ['Waiting', 'waiting'],
+              ['With doctor', 'in-consultation'],
+              ['Completed', 'completed'],
+            ].map(([label, status]) => (
+              <div key={status}>
+                <span>{label}</span>
+                <strong>{bookings.filter((item) => item.status === status).length}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="appointments-tools">
         <div className="tabs">
           {['Upcoming', 'Past', 'Cancelled', 'All'].map((t) => (
@@ -141,6 +237,8 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
           {filtered.map((a) => {
             const changeable =
               a.status === 'confirmed' && new Date(a.start) - Date.now() >= 7200000;
+            const checkInDelta = new Date(a.start).getTime() - Date.now();
+            const checkInOpen = demo || (checkInDelta <= 30 * 60000 && checkInDelta >= -30 * 60000);
             return (
               <article className="appointment-card" key={a._id}>
                 <div className="appointment-date">
@@ -181,9 +279,14 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
                   {a.status}
                 </Badge>
                 <div className="appointment-actions">
-                  <button className="button subtle small" onClick={() => setDetail(a)}>
+                  <button className="button subtle small" onClick={() => openDetail(a)}>
                     Details
                   </button>
+                  {role === 'patient' && a.status === 'confirmed' && checkInOpen && (
+                    <button className="text-link" onClick={() => checkIn(a)}>
+                      <LogIn size={15} /> Check in
+                    </button>
+                  )}
                   {role === 'patient' && changeable && (
                     <button className="text-link" onClick={() => onReschedule(a)}>
                       Reschedule
@@ -201,17 +304,37 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
                       Cancel
                     </button>
                   )}
-                  {role === 'doctor' &&
-                    a.status === 'confirmed' &&
+                  {(role === 'doctor' || role === 'admin') && a.status === 'confirmed' && (
+                    <button className="text-link" onClick={() => attendance(a, 'checked-in')}>
+                      Check in
+                    </button>
+                  )}
+                  {(role === 'doctor' || role === 'admin') && a.status === 'checked-in' && (
+                    <button className="text-link" onClick={() => attendance(a, 'waiting')}>
+                      Add to queue
+                    </button>
+                  )}
+                  {(role === 'doctor' || role === 'admin') &&
+                    ['checked-in', 'waiting'].includes(a.status) && (
+                      <button
+                        className="text-link"
+                        onClick={() => attendance(a, 'in-consultation')}
+                      >
+                        <Play size={14} />
+                        Start visit
+                      </button>
+                    )}
+                  {(role === 'doctor' || role === 'admin') && a.status === 'in-consultation' && (
+                    <button className="text-link" onClick={() => attendance(a, 'completed')}>
+                      Complete
+                    </button>
+                  )}
+                  {(role === 'doctor' || role === 'admin') &&
+                    ['confirmed', 'checked-in', 'waiting'].includes(a.status) &&
                     new Date(a.start).getTime() + 1800000 <= Date.now() && (
-                      <>
-                        <button className="text-link" onClick={() => attendance(a, 'completed')}>
-                          Complete
-                        </button>
-                        <button className="text-link" onClick={() => attendance(a, 'no-show')}>
-                          No-show
-                        </button>
-                      </>
+                      <button className="text-link" onClick={() => attendance(a, 'no-show')}>
+                        No-show
+                      </button>
                     )}
                 </div>
               </article>
@@ -264,6 +387,38 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
           </div>
           <h3>Reason for visit</h3>
           <p className="muted">{detail.reason || 'No additional information provided.'}</p>
+          <div className="detail-actions">
+            <a
+              className="button subtle small"
+              href={calendarHref(detail)}
+              download={`careline-${detail._id}.ics`}
+            >
+              <Download size={16} /> Add to calendar
+            </a>
+          </div>
+          <div className="audit-timeline">
+            <h3>
+              <History size={18} />
+              Appointment timeline
+            </h3>
+            {auditTrail.length ? (
+              auditTrail.map((event) => (
+                <div className="audit-event" key={event._id}>
+                  <span />
+                  <div>
+                    <strong>{event.action.replaceAll('-', ' ')}</strong>
+                    <small>
+                      {dateLabel(event.createdAt)} · {timeLabel(event.createdAt)}
+                      {event.actor?.name ? ` · ${event.actor.name}` : ''}
+                    </small>
+                  </div>
+                  {event.toStatus && <Badge tone="neutral">{event.toStatus}</Badge>}
+                </div>
+              ))
+            ) : (
+              <p className="muted">Timeline events will appear as this appointment changes.</p>
+            )}
+          </div>
           <p className="policy">
             Please arrive 10 minutes before your appointment. All appointment times are in IST.
           </p>

@@ -52,7 +52,12 @@ export default function BookingModal({
         if (demo) {
           if (
             bookings.some(
-              (a) => a._id !== appointment._id && a.status === 'confirmed' && a.start === selected,
+              (a) =>
+                a._id !== appointment._id &&
+                ['pending', 'confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(
+                  a.status,
+                ) &&
+                a.start === selected,
             )
           )
             throw new Error('You already have an appointment at this time.');
@@ -66,7 +71,14 @@ export default function BookingModal({
         }
         setResult('Your appointment has been rescheduled.');
       } else if (demo) {
-        if (bookings.some((a) => a.status === 'confirmed' && a.start === selected))
+        if (
+          bookings.some(
+            (a) =>
+              ['pending', 'confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(
+                a.status,
+              ) && a.start === selected,
+          )
+        )
           throw new Error('You already have an appointment at this time.');
         onDone(
           {

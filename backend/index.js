@@ -1,8 +1,19 @@
 import mongoose from 'mongoose';
 import app from './app.js';
-import { User, Doctor, Appointment, Payment, Claim } from './models/index.js';
+import {
+  User,
+  Doctor,
+  Appointment,
+  Payment,
+  Claim,
+  Notification,
+  AuditEvent,
+  WaitlistEntry,
+  RecommendationFeedback,
+} from './models/index.js';
 import { releaseExpired } from './services/booking.service.js';
 import { reconcilePayments } from './services/payment.service.js';
+import { expireWaitlistOffers, generateReminders } from './services/experience.service.js';
 if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
   throw new Error('MONGODB_URI is required in production.');
 }
@@ -17,6 +28,10 @@ if (process.env.MONGODB_URI) {
       Appointment.init(),
       Payment.init(),
       Claim.init(),
+      Notification.init(),
+      AuditEvent.init(),
+      WaitlistEntry.init(),
+      RecommendationFeedback.init(),
     ]);
     console.log('MongoDB connected.');
   } catch (e) {
@@ -31,5 +46,7 @@ setInterval(() => {
   if (mongoose.connection.readyState === 1) {
     void releaseExpired().catch((e) => console.error(e.message));
     void reconcilePayments().catch((e) => console.error(e.message));
+    void expireWaitlistOffers().catch((e) => console.error(e.message));
+    void generateReminders().catch((e) => console.error(e.message));
   }
 }, 30000).unref();

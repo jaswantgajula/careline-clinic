@@ -26,6 +26,8 @@ import {
   Phone,
   Info,
   ChevronDown,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { daysAhead, dateKey } from '../services/demo';
@@ -47,12 +49,14 @@ export default function Assistant({ demo, user, doctors, onBook, onProfile }) {
     [consent, setConsent] = useState(false),
     [busy, setBusy] = useState(false),
     [result, setResult] = useState(null),
+    [feedback, setFeedback] = useState(null),
     [error, setError] = useState('');
   async function submit(e) {
     e.preventDefault();
     setError('');
     setBusy(true);
     setResult(null);
+    setFeedback(null);
     try {
       if (demo) {
         setResult({
@@ -70,6 +74,18 @@ export default function Assistant({ demo, user, doctors, onBook, onProfile }) {
       setError(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+  async function rate(helpful) {
+    try {
+      if (!demo && result?.recommendationId)
+        await api(`/recommendations/${result.recommendationId}/feedback`, {
+          method: 'POST',
+          body: { helpful },
+        });
+      setFeedback(helpful);
+    } catch (e) {
+      setError(e.message);
     }
   }
   return (
@@ -149,6 +165,29 @@ export default function Assistant({ demo, user, doctors, onBook, onProfile }) {
                 result.doctors?.map((d) => (
                   <DoctorCard doctor={d} onBook={onBook} onProfile={onProfile} key={d._id} />
                 ))}
+              <div className="ai-feedback">
+                <span>
+                  {feedback === null
+                    ? 'Was this guidance helpful?'
+                    : 'Thanks for helping us improve.'}
+                </span>
+                {feedback === null && (
+                  <div>
+                    <button type="button" aria-label="Helpful guidance" onClick={() => rate(true)}>
+                      <ThumbsUp size={16} />
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Unhelpful guidance"
+                      onClick={() => rate(false)}
+                    >
+                      <ThumbsDown size={16} />
+                      Not quite
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </section>

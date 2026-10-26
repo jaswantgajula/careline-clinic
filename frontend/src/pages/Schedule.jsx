@@ -79,7 +79,9 @@ export default function Schedule({ demo, doctor, bookings, onSave, notify }) {
         throw new Error('Check working days, working hours and breaks.');
       if (demo) {
         for (const a of bookings.filter(
-          (a) => a.status === 'confirmed' && new Date(a.start) > new Date(),
+          (a) =>
+            ['confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(a.status) &&
+            new Date(a.start) > new Date(),
         )) {
           const parts = new Intl.DateTimeFormat('en-GB', {
             timeZone: 'Asia/Kolkata',

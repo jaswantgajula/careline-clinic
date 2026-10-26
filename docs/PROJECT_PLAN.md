@@ -17,6 +17,14 @@ One clinic, multiple doctors. Patient, doctor and administrator roles. MERN appl
 
 A calm, precise clinic workspace: deep navy navigation, clear blue actions, generous white surfaces, readable typography and accessible controls. Responsive patient discovery, doctor profiles, guided booking, appointment management, doctor scheduling and administrative overview. Clear loading, empty, error, success and disabled states. Keyboard navigation and reduced-motion support.
 
+## Extended clinic operations
+
+- Google sign-in for patients with server verification and conservative account linking.
+- Patient check-in, live clinic queue states and real-time in-app updates.
+- Oldest-first smart waitlists with expiring reserved offers.
+- Notification center, reminder preferences and appointment audit history.
+- Calendar export, admin analytics, AI helpfulness feedback and installable/offline PWA shell.
+
 ## Delivery order
 
 1. Reviewable frontend with clearly labelled sample data.

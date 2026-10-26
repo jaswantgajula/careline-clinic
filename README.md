@@ -1,6 +1,17 @@
 # Careline Clinic
 
-A MERN appointment scheduler for one clinic with multiple doctors. Includes responsive light and dark themes, a patient portal, doctor workspace, admin tools, Razorpay **test-mode** checkout and an optional AI specialty finder.
+A MERN appointment scheduler for one clinic with multiple doctors. Includes responsive light and dark themes, Google sign-in, a patient portal, a live doctor queue, smart waitlists, admin analytics, Razorpay **test-mode** checkout and an optional AI specialty finder.
+
+## Standout features
+
+- Google Identity Services sign-in with server-side ID-token verification and safe account linking.
+- Patient self check-in and a live `arrived → waiting → in consultation → completed` clinic queue.
+- Smart cancellation waitlist with 10-minute, automatically expiring slot offers.
+- Real-time in-app notifications over server-sent events and idempotent 24-hour/2-hour reminders.
+- Complete appointment audit timeline plus `.ics` calendar downloads.
+- Thirty-day admin analytics for demand, attendance, revenue, waitlist conversion and AI helpfulness.
+- Patient feedback capture for AI routing quality without storing the original symptom text.
+- Installable PWA shell with offline access to the most recently loaded interface; API and medical data are never cached.
 
 ## Run the preview
 
@@ -30,6 +41,8 @@ npm run dev
 
 The seed is additive and preserves existing records. Administrator: `admin@careline.test`. Doctors: `ananya@careline.test`, `rohan@careline.test`, `priya@careline.test`, `arjun@careline.test`, `meera@careline.test`, `kabir@careline.test`. Use your configured seed passwords. Patients register through the interface. Public registration cannot grant staff roles.
 
+For Google sign-in, create a **Web application** OAuth client in Google Cloud, add both `http://localhost:5173` and `http://127.0.0.1:5173` while developing, then paste the client ID into `backend/.env`. Authentication requests only standard identity claims; this project does not request Gmail inbox access.
+
 ## Razorpay test payments
 
 Set `RAZORPAY_KEY_ID` (must start with `rzp_test_`), `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`. Use Razorpay's test dashboard, configure automatic capture, and register an HTTPS webhook at `/api/payments/webhook` for `payment.captured` and `order.paid`. Local webhooks need an HTTPS tunnel; register the deployed endpoint when publishing.
@@ -54,7 +67,9 @@ The assistant provides specialty guidance, not diagnosis or prescriptions. It ca
 - Same-doctor rescheduling carries over the original fee and payment; changing doctors requires cancelling and rebooking.
 - Failed rescheduling leaves the original appointment untouched.
 - Doctor schedule changes and deactivation cannot silently displace confirmed visits or pending reservations.
-- Statuses for appointments and payments are stored separately.
+- Online check-in opens 30 minutes before the visit and closes 30 minutes after.
+- Waitlist offers are allocated oldest-first within the patient's selected time window and expire after 10 minutes.
+- Statuses for appointments and payments are stored separately, and appointment changes are audited.
 
 ## Structure
 
@@ -77,7 +92,7 @@ npm test
 npm run build
 ```
 
-Tests create and destroy an isolated MongoDB replica set; the first run may download the official MongoDB binary. They do not use your configured database. Coverage includes concurrent bookings, patient overlaps, rescheduling rollback, duplicate/late payments, refunds, ownership, input constraints, authentication and conflicting schedule changes.
+Tests create and destroy an isolated MongoDB replica set; the first run may download the official MongoDB binary. They do not use your configured database. Coverage includes concurrent bookings, patient overlaps, rescheduling rollback, duplicate/late payments, refunds, ownership, Google account linking, clinic queue transitions, waitlist allocation/expiry, calendar export, input constraints, authentication and conflicting schedule changes.
 
 The production frontend is built into `frontend/dist` and served by Express.
 
@@ -85,7 +100,7 @@ The production frontend is built into `frontend/dist` and served by Express.
 
 Use a Node-capable host and MongoDB Atlas. Build with `npm ci && npm run build`, set `NODE_ENV=production`, `HOST=0.0.0.0`, the host's `PORT`, your HTTPS `APP_ORIGIN`, and the service secrets. Start with `npm run start -w backend`. Serve the frontend and API from the same origin. Configure HTTPS, Razorpay webhooks, and automatic payment capture. This repository has not yet been deployed to a public host.
 
-Do not upload real patient data to this classroom project. Password reset, email reminders, medical records and multi-clinic support are outside the agreed first version.
+Do not upload real patient data to this classroom project. In-app reminders are complete; the email preference is ready for a transactional email provider, but no outbound email credentials are included. Password reset, medical records and multi-clinic support remain outside the agreed version.
 
 ## References
 

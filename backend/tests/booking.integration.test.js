@@ -4,7 +4,17 @@ import bcrypt from 'bcryptjs';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import { Doctor, Appointment, Payment, Claim, User } from '../models/index.js';
+import {
+  Doctor,
+  Appointment,
+  Payment,
+  Claim,
+  User,
+  Notification,
+  AuditEvent,
+  WaitlistEntry,
+  RecommendationFeedback,
+} from '../models/index.js';
 import {
   reserve,
   reschedule,
@@ -14,6 +24,7 @@ import {
 } from '../services/booking.service.js';
 import { clinicDate } from '../services/policies.js';
 import { findOrCreateGoogleUser } from '../services/googleAuth.service.js';
+import { expireWaitlistOffers } from '../services/experience.service.js';
 let replica, doctor, patient, other, server, base;
 const at = (hour, days = 2) =>
   `${clinicDate(new Date(Date.now() + days * 86400000))}T${hour}:00:00+05:30`;
@@ -28,7 +39,17 @@ before(async () => {
     binary: { downloadDir: '/private/tmp/careline-mongodb-binaries' },
   });
   await mongoose.connect(replica.getUri());
-  await Promise.all([Doctor.init(), Appointment.init(), Payment.init(), Claim.init(), User.init()]);
+  await Promise.all([
+    Doctor.init(),
+    Appointment.init(),
+    Payment.init(),
+    Claim.init(),
+    User.init(),
+    Notification.init(),
+    AuditEvent.init(),
+    WaitlistEntry.init(),
+    RecommendationFeedback.init(),
+  ]);
 });
 after(async () => {
   await new Promise((resolve) => server.close(resolve));
@@ -42,6 +63,10 @@ beforeEach(async () => {
     Payment.deleteMany({}),
     Claim.deleteMany({}),
     User.deleteMany({}),
+    Notification.deleteMany({}),
+    AuditEvent.deleteMany({}),
+    WaitlistEntry.deleteMany({}),
+    RecommendationFeedback.deleteMany({}),
   ]);
   patient = new mongoose.Types.ObjectId();
   other = new mongoose.Types.ObjectId();
@@ -150,6 +175,87 @@ test('cancellation enforces ownership, queues refund and frees slot', async () =
   assert.equal(await Claim.countDocuments(), 0);
   await assert.rejects(cancel(appointment._id, { _id: patient, role: 'patient' }));
 });
+test('cancelled slot is held for the earliest matching waitlist patient', async () => {
+  const waiting = await User.create({
+    name: 'Waiting Patient',
+    email: 'waiting@example.test',
+    password: await bcrypt.hash('TestPassword123!', 4),
+    role: 'patient',
+  });
+  const start = at('10');
+  const entry = await WaitlistEntry.create({
+    patient: waiting._id,
+    doctor: doctor._id,
+    date: clinicDate(new Date(start)),
+    earliestHour: 9,
+    latestHour: 12,
+  });
+  const { appointment } = await paidBooking(start);
+  await cancel(appointment._id, { _id: patient, role: 'patient' });
+  const offered = await WaitlistEntry.findById(entry._id);
+  assert.equal(offered.status, 'offered');
+  assert.equal(offered.offeredStart.toISOString(), new Date(start).toISOString());
+  assert.ok(offered.offerExpiresAt > new Date());
+  assert.equal(await Claim.countDocuments({ waitlist: entry._id }), 1);
+  assert.equal(await Notification.countDocuments({ user: waiting._id, type: 'waitlist' }), 1);
+});
+test('expired waitlist offers release their slot claim', async () => {
+  const entry = await WaitlistEntry.create({
+    patient,
+    doctor: doctor._id,
+    date: clinicDate(new Date(at('10'))),
+    status: 'offered',
+    offeredStart: new Date(at('10')),
+    offerExpiresAt: new Date(Date.now() - 1000),
+  });
+  await Claim.create({
+    resource: `doctor:${doctor._id}`,
+    start: new Date(at('10')),
+    waitlist: entry._id,
+  });
+  await expireWaitlistOffers();
+  assert.equal((await WaitlistEntry.findById(entry._id)).status, 'expired');
+  assert.equal(await Claim.countDocuments({ waitlist: entry._id }), 0);
+});
+test('waitlist skips a patient who is already booked at the released time', async () => {
+  const [conflicted, available] = await User.create([
+    {
+      name: 'Conflicted Patient',
+      email: 'conflicted@example.test',
+      password: await bcrypt.hash('TestPassword123!', 4),
+      role: 'patient',
+    },
+    {
+      name: 'Available Patient',
+      email: 'available@example.test',
+      password: await bcrypt.hash('TestPassword123!', 4),
+      role: 'patient',
+    },
+  ]);
+  const start = at('10');
+  await WaitlistEntry.create([
+    {
+      patient: conflicted._id,
+      doctor: doctor._id,
+      date: clinicDate(new Date(start)),
+      earliestHour: 9,
+      latestHour: 12,
+      createdAt: new Date(Date.now() - 10000),
+    },
+    {
+      patient: available._id,
+      doctor: doctor._id,
+      date: clinicDate(new Date(start)),
+      earliestHour: 9,
+      latestHour: 12,
+    },
+  ]);
+  await Claim.create({ resource: `patient:${conflicted._id}`, start: new Date(start) });
+  const { appointment } = await paidBooking(start);
+  await cancel(appointment._id, { _id: patient, role: 'patient' });
+  assert.equal((await WaitlistEntry.findOne({ patient: conflicted._id })).status, 'active');
+  assert.equal((await WaitlistEntry.findOne({ patient: available._id })).status, 'offered');
+});
 test("doctor can cancel their own booking but not another doctor's booking", async () => {
   const staff = await User.create({
     name: 'Doctor Owner',
@@ -246,6 +352,65 @@ test('registration hashes passwords, ignores role injection and enforces authori
     body: { name: 'Changed' },
   });
   assert.equal(r.status, 403);
+});
+test('patient check-in and staff queue transitions create a visible audit trail', async () => {
+  let response = await request('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Queue Patient',
+      email: 'queue-patient@example.test',
+      password: 'TestPassword123!',
+    },
+  });
+  const patientCookie = response.headers.get('set-cookie').split(';')[0];
+  const patientAccount = await response.json();
+  const staff = await User.create({
+    name: 'Queue Doctor',
+    email: 'queue-doctor@example.test',
+    password: await bcrypt.hash('TestPassword123!', 4),
+    role: 'doctor',
+  });
+  doctor.user = staff._id;
+  await doctor.save();
+  const appointment = await Appointment.create({
+    patient: patientAccount.id,
+    doctor: doctor._id,
+    start: new Date(Date.now() + 10 * 60000),
+    fee: 600,
+    status: 'confirmed',
+  });
+  response = await request(`/appointments/${appointment._id}/check-in`, {
+    method: 'POST',
+    cookie: patientCookie,
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).status, 'checked-in');
+
+  response = await request('/auth/login', {
+    method: 'POST',
+    body: { email: staff.email, password: 'TestPassword123!' },
+  });
+  const staffCookie = response.headers.get('set-cookie').split(';')[0];
+  for (const status of ['waiting', 'in-consultation', 'completed']) {
+    response = await request(`/appointments/${appointment._id}/status`, {
+      method: 'POST',
+      cookie: staffCookie,
+      body: { status },
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, status);
+  }
+  response = await request(`/appointments/${appointment._id}/audit`, { cookie: patientCookie });
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    (await response.json()).map((event) => event.toStatus),
+    ['checked-in', 'waiting', 'in-consultation', 'completed'],
+  );
+  response = await request(`/appointments/${appointment._id}/calendar.ics`, {
+    cookie: patientCookie,
+  });
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /BEGIN:VCALENDAR[\s\S]*Test doctor/);
 });
 test('Google identity creates and reuses one passwordless patient account', async () => {
   const payload = {

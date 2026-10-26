@@ -40,7 +40,12 @@ export function demoSlots(d, date, bookings = []) {
     const start = new Date(+new Date(`${date}T00:00:00+05:30`) + h * 3600000).toISOString();
     if ((h >= d.breakStart && h < d.breakEnd) || new Date(start) < new Date()) continue;
     if (
-      !bookings.some((a) => a.doctor._id === d._id && a.start === start && a.status === 'confirmed')
+      !bookings.some(
+        (a) =>
+          a.doctor._id === d._id &&
+          a.start === start &&
+          ['pending', 'confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(a.status),
+      )
     )
       result.push(start);
   }

@@ -6,7 +6,10 @@ import Assistant from './pages/Assistant';
 import Appointments from './pages/Appointments';
 import Doctors from './pages/Doctors';
 import Overview from './pages/Overview';
-import React, { useEffect, useState } from 'react';
+import Waitlist from './pages/Waitlist';
+import Insights from './pages/Insights';
+import NotificationCenter from './components/NotificationCenter';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom';
 import {
   Activity,
@@ -36,6 +39,8 @@ import {
   ChevronDown,
   Moon,
   Sun,
+  ListChecks,
+  BarChart3,
 } from 'lucide-react';
 import { api } from './services/api';
 import {
@@ -112,7 +117,7 @@ export default function App() {
     demo && role === 'doctor'
       ? allBookings.filter((a) => a.doctor?._id === demoDoctors[0]?._id)
       : allBookings;
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
       const d = await api('/doctors');
       setDoctors(d);
@@ -121,7 +126,7 @@ export default function App() {
     } catch (e) {
       setLoadError(e.message);
     }
-  }
+  }, [user]);
   useEffect(() => {
     let active = true;
     api('/health')
@@ -148,7 +153,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (user && mode === 'live') refresh();
-  }, [user, mode]);
+  }, [user, mode, refresh]);
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(''), 5000);
@@ -185,6 +190,7 @@ export default function App() {
           ['/', 'Overview', LayoutDashboard],
           ['/doctors', 'Find a doctor', Stethoscope],
           ['/appointments', 'My appointments', CalendarDays],
+          ['/waitlist', 'Smart waitlist', ListChecks],
           ['/assistant', 'Care assistant', Sparkles],
         ]
       : role === 'doctor'
@@ -197,6 +203,7 @@ export default function App() {
             ['/', 'Overview', LayoutDashboard],
             ['/appointments', 'Appointments', CalendarDays],
             ['/manage', 'Manage doctors', Users],
+            ['/insights', 'Insights', BarChart3],
           ];
   if (mode === 'loading') return <Busy />;
   const common = {
@@ -303,6 +310,7 @@ export default function App() {
             </strong>
           </div>
           <div className="top-actions">
+            <NotificationCenter demo={demo} user={currentUser} onLiveUpdate={refresh} />
             <button
               type="button"
               className="icon-button theme-toggle"
@@ -387,6 +395,18 @@ export default function App() {
             />
             <Route path="/assistant" element={<Assistant {...common} />} />
             <Route
+              path="/waitlist"
+              element={
+                role === 'patient' ? (
+                  <Waitlist {...common} onUpdate={done} />
+                ) : (
+                  <Empty title="Patient access required">
+                    Waitlists belong to patient accounts.
+                  </Empty>
+                )
+              }
+            />
+            <Route
               path="/schedule"
               element={
                 role === 'doctor' ? (
@@ -414,6 +434,18 @@ export default function App() {
                     notify={setToast}
                     refresh={refresh}
                   />
+                ) : (
+                  <Empty title="Administrator access required">
+                    Sign in with your clinic administrator account.
+                  </Empty>
+                )
+              }
+            />
+            <Route
+              path="/insights"
+              element={
+                role === 'admin' ? (
+                  <Insights demo={demo} bookings={allBookings} />
                 ) : (
                   <Empty title="Administrator access required">
                     Sign in with your clinic administrator account.

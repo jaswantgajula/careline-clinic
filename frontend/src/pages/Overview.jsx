@@ -45,7 +45,11 @@ import PageHeading from '../components/PageHeading';
 export default function Overview({ user, doctors, bookings, onBook, onProfile, demo }) {
   const patient = !user || user.role === 'patient';
   const next = bookings
-    .filter((a) => a.status === 'confirmed' && new Date(a.start) > new Date())
+    .filter(
+      (a) =>
+        ['confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(a.status) &&
+        new Date(a.start) > new Date(),
+    )
     .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
   const completed = bookings.filter((a) => a.status === 'completed').length;
   const total = bookings
@@ -74,7 +78,9 @@ export default function Overview({ user, doctors, bookings, onBook, onProfile, d
         {[
           [
             CalendarDays,
-            bookings.filter((a) => a.status === 'confirmed').length,
+            bookings.filter((a) =>
+              ['confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(a.status),
+            ).length,
             'Upcoming appointments',
             'blue',
           ],

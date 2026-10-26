@@ -112,7 +112,9 @@ export default function Manage({ demo, doctors, bookings, onSave, notify, refres
           d.active &&
           bookings.some(
             (a) =>
-              a.doctor._id === d._id && a.status === 'confirmed' && new Date(a.start) > new Date(),
+              a.doctor._id === d._id &&
+              ['confirmed', 'checked-in', 'waiting', 'in-consultation'].includes(a.status) &&
+              new Date(a.start) > new Date(),
           )
         )
           throw new Error('Resolve future appointments before deactivating this doctor.');
