@@ -5,6 +5,7 @@ A MERN appointment scheduler for one clinic with multiple doctors. Includes resp
 ## Live deployment
 
 - **Application:** [careline-clinic.vercel.app](https://careline-clinic.vercel.app)
+- **Video walkthrough:** [Watch the Careline project demonstration](https://drive.google.com/file/d/1h2YOstqVTVezh7doeyXbHDqXm_BvRy4s/view?usp=sharing)
 - **Backend health:** [careline-clinic-api.onrender.com/api/health](https://careline-clinic-api.onrender.com/api/health)
 - **Source code:** [github.com/jaswantgajula/careline-clinic](https://github.com/jaswantgajula/careline-clinic)
 
