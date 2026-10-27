@@ -1,5 +1,5 @@
 import React from 'react';
-import { BriefcaseMedical, Clock3 } from 'lucide-react';
+import { BriefcaseMedical, Clock3, Star } from 'lucide-react';
 import { Avatar, money } from './UI';
 export default function DoctorCard({ doctor, onBook, onProfile }) {
   return (
@@ -12,6 +12,16 @@ export default function DoctorCard({ doctor, onBook, onProfile }) {
           </button>
           <p className="specialty">{doctor.specialty}</p>
           <p className="qualification">{doctor.qualification}</p>
+          {doctor.reviewCount > 0 && (
+            <span
+              className="doctor-rating"
+              aria-label={`${doctor.averageRating.toFixed(1)} out of 5 from ${doctor.reviewCount} reviews`}
+            >
+              <Star size={13} fill="currentColor" />
+              {doctor.averageRating.toFixed(1)}
+              <small>({doctor.reviewCount})</small>
+            </span>
+          )}
         </div>
       </div>
       <div className="doctor-meta">

@@ -11,6 +11,8 @@ A MERN appointment scheduler for one clinic with multiple doctors. Includes resp
 - Complete appointment audit timeline plus `.ics` calendar downloads.
 - Thirty-day admin analytics for demand, attendance, revenue, waitlist conversion and AI helpfulness.
 - Patient feedback capture for AI routing quality without storing the original symptom text.
+- Doctor-authored visit summaries with private clinical notes, patient-safe PDF exports and follow-up plans.
+- One verified star rating and optional feedback note per completed appointment, reflected in doctor and admin analytics.
 - Installable PWA shell with offline access to the most recently loaded interface; API and medical data are never cached.
 
 ## Run the preview
@@ -69,6 +71,8 @@ The assistant provides specialty guidance, not diagnosis or prescriptions. It ca
 - Doctor schedule changes and deactivation cannot silently displace confirmed visits or pending reservations.
 - Online check-in opens 30 minutes before the visit and closes 30 minutes after.
 - Waitlist offers are allocated oldest-first within the patient's selected time window and expire after 10 minutes.
+- Doctors may draft summaries during a consultation and publish them only after completion. Published summaries are locked; private notes are excluded from patient responses and PDFs.
+- Only the patient who attended a completed appointment may review it, and each appointment can be reviewed once.
 - Statuses for appointments and payments are stored separately, and appointment changes are audited.
 
 ## Structure
@@ -92,7 +96,7 @@ npm test
 npm run build
 ```
 
-Tests create and destroy an isolated MongoDB replica set; the first run may download the official MongoDB binary. They do not use your configured database. Coverage includes concurrent bookings, patient overlaps, rescheduling rollback, duplicate/late payments, refunds, ownership, Google account linking, clinic queue transitions, waitlist allocation/expiry, calendar export, input constraints, authentication and conflicting schedule changes.
+Tests create and destroy an isolated MongoDB replica set; the first run may download the official MongoDB binary. They do not use your configured database. Coverage includes concurrent bookings, patient overlaps, rescheduling rollback, duplicate/late payments, refunds, ownership, Google account linking, clinic queue transitions, waitlist allocation/expiry, private visit-summary boundaries, PDF generation, verified appointment reviews, calendar export, input constraints, authentication and conflicting schedule changes.
 
 The production frontend is built into `frontend/dist` and served by Express.
 
@@ -100,7 +104,7 @@ The production frontend is built into `frontend/dist` and served by Express.
 
 Use a Node-capable host and MongoDB Atlas. Build with `npm ci && npm run build`, set `NODE_ENV=production`, `HOST=0.0.0.0`, the host's `PORT`, your HTTPS `APP_ORIGIN`, and the service secrets. Start with `npm run start -w backend`. Serve the frontend and API from the same origin. Configure HTTPS, Razorpay webhooks, and automatic payment capture. This repository has not yet been deployed to a public host.
 
-Do not upload real patient data to this classroom project. In-app reminders are complete; the email preference is ready for a transactional email provider, but no outbound email credentials are included. Password reset, medical records and multi-clinic support remain outside the agreed version.
+Do not upload real patient data to this classroom project. Visit summaries and prescriptions are demonstration records, not a production electronic medical-record system. In-app reminders are complete; the email preference is ready for a transactional email provider, but no outbound email credentials are included. Password reset, diagnostic attachments and multi-clinic support remain outside the agreed version.
 
 ## References
 

@@ -111,7 +111,20 @@ export default function App() {
       }
     : user;
   const role = currentUser?.role || 'patient';
-  const directory = demo ? demoDoctors.filter((d) => d.active) : doctors;
+  const directory = demo
+    ? demoDoctors
+        .filter((d) => d.active)
+        .map((doctor) => ({
+          ...doctor,
+          averageRating:
+            doctor.averageRating ??
+            sampleDoctors.find((sample) => sample._id === doctor._id)?.averageRating,
+          reviewCount:
+            doctor.reviewCount ??
+            sampleDoctors.find((sample) => sample._id === doctor._id)?.reviewCount ??
+            0,
+        }))
+    : doctors;
   const allBookings = demo ? demoBookings : bookings;
   const visibleBookings =
     demo && role === 'doctor'
@@ -260,17 +273,28 @@ export default function App() {
             Settings
           </NavLink>
           <div className="sidebar-user">
-            <span className="user-avatar">
-              {role === 'doctor' ? 'AS' : role === 'admin' ? 'CA' : 'AM'}
-            </span>
-            <div>
-              <strong>{currentUser?.name || 'Welcome to Careline'}</strong>
-              <small>
-                {currentUser
-                  ? `${role[0].toUpperCase() + role.slice(1)} account`
-                  : 'Sign in to book your visit'}
-              </small>
-            </div>
+            <button
+              type="button"
+              className="sidebar-profile"
+              aria-label={currentUser ? 'Open profile settings' : 'Sign in to Careline'}
+              onClick={() => {
+                setMobile(false);
+                if (currentUser) navigate('/settings');
+                else setAuthModal(true);
+              }}
+            >
+              <span className="user-avatar">
+                {role === 'doctor' ? 'AS' : role === 'admin' ? 'CA' : 'AM'}
+              </span>
+              <span className="sidebar-profile-copy">
+                <strong>{currentUser?.name || 'Welcome to Careline'}</strong>
+                <small>
+                  {currentUser
+                    ? `${role[0].toUpperCase() + role.slice(1)} account`
+                    : 'Sign in to book your visit'}
+                </small>
+              </span>
+            </button>
             {currentUser && !demo ? (
               <button
                 aria-label="Sign out"

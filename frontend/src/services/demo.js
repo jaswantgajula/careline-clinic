@@ -14,6 +14,8 @@ export const doctors = [
   fee,
   initials,
   color,
+  averageRating: [4.9, 4.8, 4.9, 4.7, 4.9, 4.8][i],
+  reviewCount: [128, 96, 114, 82, 137, 64][i],
   active: true,
   days: [1, 2, 3, 4, 5, 6],
   start: 9,

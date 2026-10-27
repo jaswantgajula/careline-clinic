@@ -14,6 +14,8 @@ import {
   AuditEvent,
   WaitlistEntry,
   RecommendationFeedback,
+  VisitSummary,
+  AppointmentReview,
 } from '../models/index.js';
 import {
   reserve,
@@ -49,6 +51,8 @@ before(async () => {
     AuditEvent.init(),
     WaitlistEntry.init(),
     RecommendationFeedback.init(),
+    VisitSummary.init(),
+    AppointmentReview.init(),
   ]);
 });
 after(async () => {
@@ -67,6 +71,8 @@ beforeEach(async () => {
     AuditEvent.deleteMany({}),
     WaitlistEntry.deleteMany({}),
     RecommendationFeedback.deleteMany({}),
+    VisitSummary.deleteMany({}),
+    AppointmentReview.deleteMany({}),
   ]);
   patient = new mongoose.Types.ObjectId();
   other = new mongoose.Types.ObjectId();
@@ -411,6 +417,109 @@ test('patient check-in and staff queue transitions create a visible audit trail'
   });
   assert.equal(response.status, 200);
   assert.match(await response.text(), /BEGIN:VCALENDAR[\s\S]*Test doctor/);
+});
+test('doctor publishes a private-safe visit summary and patient reviews the completed visit', async () => {
+  let response = await request('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Summary Patient',
+      email: 'summary-patient@example.test',
+      password: 'TestPassword123!',
+    },
+  });
+  const patientCookie = response.headers.get('set-cookie').split(';')[0];
+  const patientAccount = await response.json();
+  const staff = await User.create({
+    name: 'Summary Doctor',
+    email: 'summary-doctor@example.test',
+    password: await bcrypt.hash('TestPassword123!', 4),
+    role: 'doctor',
+  });
+  doctor.user = staff._id;
+  await doctor.save();
+  const appointment = await Appointment.create({
+    patient: patientAccount.id,
+    doctor: doctor._id,
+    start: new Date(Date.now() - 3600000),
+    fee: 600,
+    status: 'completed',
+    completedAt: new Date(),
+  });
+  response = await request('/auth/login', {
+    method: 'POST',
+    body: { email: staff.email, password: 'TestPassword123!' },
+  });
+  const doctorCookie = response.headers.get('set-cookie').split(';')[0];
+  const summary = {
+    diagnosis: 'Seasonal allergic rhinitis',
+    advice: 'Stay hydrated and avoid known triggers.',
+    medications: [
+      {
+        name: 'Cetirizine',
+        dosage: '10 mg',
+        frequency: 'Once daily',
+        duration: '5 days',
+        instructions: 'Take after dinner.',
+      },
+    ],
+    followUpDate: clinicDate(new Date(Date.now() + 7 * 86400000)),
+    privateNotes: 'Discuss adherence at the next visit.',
+  };
+  response = await request(`/appointments/${appointment._id}/summary`, {
+    method: 'PUT',
+    cookie: doctorCookie,
+    body: summary,
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).privateNotes, summary.privateNotes);
+
+  response = await request(`/appointments/${appointment._id}/summary`, {
+    cookie: patientCookie,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(await response.json(), null);
+
+  response = await request(`/appointments/${appointment._id}/summary/publish`, {
+    method: 'POST',
+    cookie: doctorCookie,
+  });
+  assert.equal(response.status, 200);
+
+  response = await request(`/appointments/${appointment._id}/summary`, {
+    cookie: patientCookie,
+  });
+  const patientSummary = await response.json();
+  assert.equal(patientSummary.diagnosis, summary.diagnosis);
+  assert.equal('privateNotes' in patientSummary, false);
+
+  response = await request(`/appointments/${appointment._id}/summary.pdf`, {
+    cookie: patientCookie,
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /application\/pdf/);
+  assert.equal(
+    Buffer.from(await response.arrayBuffer())
+      .subarray(0, 4)
+      .toString(),
+    '%PDF',
+  );
+
+  response = await request(`/appointments/${appointment._id}/review`, {
+    method: 'POST',
+    cookie: patientCookie,
+    body: { rating: 5, comment: 'Clear explanation and thoughtful care.' },
+  });
+  assert.equal(response.status, 201);
+  response = await request(`/appointments/${appointment._id}/review`, {
+    method: 'POST',
+    cookie: patientCookie,
+    body: { rating: 4, comment: '' },
+  });
+  assert.equal(response.status, 409);
+  response = await request('/doctors');
+  const publicDoctor = (await response.json()).find((item) => item._id === String(doctor._id));
+  assert.equal(publicDoctor.averageRating, 5);
+  assert.equal(publicDoctor.reviewCount, 1);
 });
 test('Google identity creates and reuses one passwordless patient account', async () => {
   const payload = {

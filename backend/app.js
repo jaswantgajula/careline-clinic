@@ -104,8 +104,15 @@ app.get('/{*splat}', (req, res) => {
 app.use((err, req, res, next) => {
   if (err instanceof ZodError)
     return res.status(400).json({ message: err.issues.map((x) => x.message).join(' ') });
-  if (err.code === 11000)
-    return res.status(409).json({ message: 'This email or time slot is already in use.' });
+  if (err.code === 11000) {
+    const fields = Object.keys(err.keyPattern || {});
+    const message = fields.includes('appointment')
+      ? 'This appointment already has a visit summary or review.'
+      : fields.includes('email')
+        ? 'An account with this email already exists.'
+        : 'This record or time slot is already in use.';
+    return res.status(409).json({ message });
+  }
   if (err.name === 'CastError')
     return res.status(400).json({ message: 'Invalid record identifier.' });
   console.error(err.message);

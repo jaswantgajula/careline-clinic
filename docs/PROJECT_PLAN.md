@@ -24,6 +24,8 @@ A calm, precise clinic workspace: deep navy navigation, clear blue actions, gene
 - Oldest-first smart waitlists with expiring reserved offers.
 - Notification center, reminder preferences and appointment audit history.
 - Calendar export, admin analytics, AI helpfulness feedback and installable/offline PWA shell.
+- Doctor consultation summaries with private notes, published patient instructions and PDF export.
+- Verified post-visit star ratings and written feedback for completed appointments.
 
 ## Delivery order
 

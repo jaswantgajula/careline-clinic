@@ -10,6 +10,8 @@ import {
   AuditEvent,
   WaitlistEntry,
   RecommendationFeedback,
+  VisitSummary,
+  AppointmentReview,
 } from './models/index.js';
 import { releaseExpired } from './services/booking.service.js';
 import { reconcilePayments } from './services/payment.service.js';
@@ -32,6 +34,8 @@ if (process.env.MONGODB_URI) {
       AuditEvent.init(),
       WaitlistEntry.init(),
       RecommendationFeedback.init(),
+      VisitSummary.init(),
+      AppointmentReview.init(),
     ]);
     console.log('MongoDB connected.');
   } catch (e) {

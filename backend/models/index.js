@@ -183,3 +183,57 @@ export const RecommendationFeedback = model(
     { timestamps: true },
   ),
 );
+
+const medicationSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    dosage: String,
+    frequency: String,
+    duration: String,
+    instructions: String,
+  },
+  { _id: false },
+);
+const visitSummarySchema = new Schema(
+  {
+    appointment: {
+      type: Schema.Types.ObjectId,
+      ref: 'Appointment',
+      required: true,
+      unique: true,
+      index: true,
+    },
+    patient: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    doctor: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true, index: true },
+    status: { type: String, enum: ['draft', 'published'], default: 'draft' },
+    diagnosis: { type: String, default: '' },
+    advice: { type: String, default: '' },
+    medications: { type: [medicationSchema], default: [] },
+    followUpDate: Date,
+    privateNotes: { type: String, default: '', select: false },
+    publishedAt: Date,
+    version: { type: Number, default: 1 },
+    lastEditedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  },
+  { timestamps: true },
+);
+export const VisitSummary = model('VisitSummary', visitSummarySchema);
+
+const appointmentReviewSchema = new Schema(
+  {
+    appointment: {
+      type: Schema.Types.ObjectId,
+      ref: 'Appointment',
+      required: true,
+      unique: true,
+      index: true,
+    },
+    patient: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    doctor: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true, index: true },
+    rating: { type: Number, min: 1, max: 5, required: true },
+    comment: { type: String, default: '' },
+  },
+  { timestamps: true },
+);
+appointmentReviewSchema.index({ doctor: 1, createdAt: -1 });
+export const AppointmentReview = model('AppointmentReview', appointmentReviewSchema);

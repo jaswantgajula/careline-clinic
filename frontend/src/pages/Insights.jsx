@@ -7,6 +7,7 @@ import {
   TrendingUp,
   UserCheck,
   Users,
+  Star,
 } from 'lucide-react';
 import PageHeading from '../components/PageHeading';
 import { Busy, Notice, money } from '../components/UI';
@@ -32,6 +33,8 @@ export default function Insights({ demo, bookings }) {
       paidAppointments: paid.length,
       waitlist: { active: 3, offered: 2, accepted: 4 },
       aiFeedback: { true: 8, false: 1 },
+      patientRating: 4.8,
+      reviewCount: 42,
       daily: [2, 4, 3, 6, 5, 7, 4].map((count, index) => ({ date: `Day ${index + 1}`, count })),
     };
   }, [bookings]);
@@ -64,6 +67,12 @@ export default function Insights({ demo, bookings }) {
               ['Attendance', `${data.attendanceRate}%`, UserCheck, 'green'],
               ['Paid revenue', money(data.revenuePaise / 100), IndianRupee, 'violet'],
               ['Upcoming', data.upcoming, CalendarCheck, 'amber'],
+              [
+                'Patient rating',
+                data.patientRating ? `${data.patientRating.toFixed(1)} / 5` : 'No ratings',
+                Star,
+                'amber',
+              ],
             ].map(([label, value, Icon, tone]) => (
               <article className="metric-card" key={label}>
                 <span className={`stat-icon ${tone}`}>

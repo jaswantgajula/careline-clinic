@@ -13,6 +13,8 @@ import {
   AuditEvent,
   WaitlistEntry,
   RecommendationFeedback,
+  VisitSummary,
+  AppointmentReview,
 } from '../models/index.js';
 import { auth, roles } from '../middlewares/auth.middleware.js';
 import { slotsFor, canComplete } from '../services/policies.js';
@@ -36,6 +38,7 @@ import {
   publish,
   subscribe,
 } from '../services/experience.service.js';
+import { renderVisitSummaryPdf } from '../services/visitSummaryPdf.service.js';
 const router = Router();
 const id = z.string().regex(/^[a-f\d]{24}$/i);
 const startSchema = z.string().datetime({ offset: true });
@@ -169,9 +172,22 @@ router.patch('/notifications/preferences', auth, async (req, res) => {
   await req.user.save();
   res.json(req.user.notificationPreferences);
 });
-router.get('/doctors', async (req, res) =>
-  res.json(await Doctor.find({ active: true }).sort({ name: 1 })),
-);
+router.get('/doctors', async (req, res) => {
+  const [doctors, ratings] = await Promise.all([
+    Doctor.find({ active: true }).sort({ name: 1 }).lean(),
+    AppointmentReview.aggregate([
+      { $group: { _id: '$doctor', averageRating: { $avg: '$rating' }, reviewCount: { $sum: 1 } } },
+    ]),
+  ]);
+  const byDoctor = new Map(ratings.map((row) => [String(row._id), row]));
+  res.json(
+    doctors.map((doctor) => ({
+      ...doctor,
+      averageRating: byDoctor.get(String(doctor._id))?.averageRating || null,
+      reviewCount: byDoctor.get(String(doctor._id))?.reviewCount || 0,
+    })),
+  );
+});
 router.get('/doctors/:id/slots', async (req, res) => {
   id.parse(req.params.id);
   const date = z
@@ -496,6 +512,143 @@ router.get('/appointments/:id/audit', auth, async (req, res) => {
       .sort({ createdAt: 1 }),
   );
 });
+const medicationBody = z.object({
+  name: z.string().trim().min(1).max(120),
+  dosage: z.string().trim().max(80).default(''),
+  frequency: z.string().trim().max(120).default(''),
+  duration: z.string().trim().max(120).default(''),
+  instructions: z.string().trim().max(300).default(''),
+});
+const summaryBody = z.object({
+  diagnosis: z.string().trim().max(1200).default(''),
+  advice: z.string().trim().max(2400).default(''),
+  medications: z.array(medicationBody).max(12).default([]),
+  followUpDate: z.string().date().nullable().default(null),
+  privateNotes: z.string().trim().max(3000).default(''),
+});
+router.get('/appointments/:id/summary', auth, roles('patient', 'doctor'), async (req, res) => {
+  id.parse(req.params.id);
+  const appointment = await appointmentForUser(req.params.id, req.user);
+  let query = VisitSummary.findOne({ appointment: appointment._id });
+  if (req.user.role === 'doctor') query = query.select('+privateNotes');
+  const summary = await query;
+  if (!summary || (req.user.role === 'patient' && summary.status !== 'published'))
+    return res.json(null);
+  res.json(summary);
+});
+router.put('/appointments/:id/summary', auth, roles('doctor'), async (req, res) => {
+  id.parse(req.params.id);
+  const body = summaryBody.parse(req.body);
+  const appointment = await appointmentForUser(req.params.id, req.user);
+  if (!['in-consultation', 'completed'].includes(appointment.status))
+    throw fail('Start the consultation before adding a visit summary.', 409);
+  const existing = await VisitSummary.findOne({ appointment: appointment._id }).select(
+    '+privateNotes',
+  );
+  if (existing?.status === 'published')
+    throw fail('Published visit summaries are locked to protect the clinical record.', 409);
+  const summary = await VisitSummary.findOneAndUpdate(
+    { appointment: appointment._id },
+    {
+      $set: {
+        ...body,
+        followUpDate: body.followUpDate ? new Date(`${body.followUpDate}T12:00:00+05:30`) : null,
+        patient: appointment.patient,
+        doctor: appointment.doctor,
+        lastEditedBy: req.user._id,
+        status: 'draft',
+      },
+      ...(existing ? { $inc: { version: 1 } } : {}),
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  ).select('+privateNotes');
+  await audit(appointment._id, req.user._id, existing ? 'summary-updated' : 'summary-created');
+  res.json(summary);
+});
+router.post('/appointments/:id/summary/publish', auth, roles('doctor'), async (req, res) => {
+  id.parse(req.params.id);
+  const appointment = await appointmentForUser(req.params.id, req.user);
+  if (appointment.status !== 'completed')
+    throw fail('Complete the appointment before publishing its visit summary.', 409);
+  const summary = await VisitSummary.findOne({
+    appointment: appointment._id,
+    status: 'draft',
+  }).select('+privateNotes');
+  if (!summary) throw fail('Save a draft visit summary first.', 404);
+  if (summary.diagnosis.trim().length < 2)
+    throw fail('Add a clinical impression before publishing.');
+  summary.status = 'published';
+  summary.publishedAt = new Date();
+  await summary.save();
+  await audit(appointment._id, req.user._id, 'summary-published');
+  await notify(
+    appointment.patient,
+    'appointment',
+    'Your visit summary is ready',
+    'Review your care instructions and download the visit summary from the appointment.',
+    { actionUrl: '/appointments', dedupeKey: `summary-published:${summary._id}` },
+  );
+  publish(appointment.patient, 'appointment', {
+    id: appointment._id,
+    summaryStatus: 'published',
+  });
+  res.json(summary);
+});
+router.get('/appointments/:id/summary.pdf', auth, roles('patient', 'doctor'), async (req, res) => {
+  id.parse(req.params.id);
+  await appointmentForUser(req.params.id, req.user);
+  const appointment = await Appointment.findById(req.params.id)
+    .populate('patient', 'name')
+    .populate('doctor', 'name specialty qualification');
+  const summary = await VisitSummary.findOne({
+    appointment: appointment._id,
+    status: 'published',
+  });
+  if (!summary) throw fail('Published visit summary not found.', 404);
+  const pdf = await renderVisitSummaryPdf({ appointment, summary });
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="careline-visit-${appointment._id}.pdf"`,
+    'Cache-Control': 'private, no-store',
+  });
+  res.send(pdf);
+});
+router.get('/appointments/:id/review', auth, async (req, res) => {
+  id.parse(req.params.id);
+  await appointmentForUser(req.params.id, req.user);
+  res.json(await AppointmentReview.findOne({ appointment: req.params.id }));
+});
+router.post('/appointments/:id/review', auth, roles('patient'), async (req, res) => {
+  id.parse(req.params.id);
+  const body = z
+    .object({
+      rating: z.number().int().min(1).max(5),
+      comment: z.string().trim().max(600).default(''),
+    })
+    .parse(req.body);
+  const appointment = await Appointment.findOne({
+    _id: req.params.id,
+    patient: req.user._id,
+    status: 'completed',
+  });
+  if (!appointment) throw fail('Only completed appointments can be reviewed.', 409);
+  const review = await AppointmentReview.create({
+    appointment: appointment._id,
+    patient: req.user._id,
+    doctor: appointment.doctor,
+    ...body,
+  });
+  const doctor = await Doctor.findById(appointment.doctor);
+  if (doctor?.user)
+    await notify(
+      doctor.user,
+      'appointment',
+      'New patient feedback',
+      `A completed visit received a ${review.rating}-star rating.`,
+      { actionUrl: '/appointments', dedupeKey: `review:${review._id}` },
+    );
+  res.status(201).json(review);
+});
 router.get('/appointments/:id/calendar.ics', auth, async (req, res) => {
   id.parse(req.params.id);
   const a = await appointmentForUser(req.params.id, req.user);
@@ -613,7 +766,7 @@ router.get('/admin/doctors', auth, roles('admin'), async (req, res) =>
 );
 router.get('/admin/analytics', auth, roles('admin'), async (req, res) => {
   const from = new Date(Date.now() - 30 * 86400000);
-  const [statusRows, revenueRows, dailyRows, waitlist, aiFeedback] = await Promise.all([
+  const [statusRows, revenueRows, dailyRows, waitlist, aiFeedback, reviewRows] = await Promise.all([
     Appointment.aggregate([
       { $match: { createdAt: { $gte: from } } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -642,6 +795,16 @@ router.get('/admin/analytics', auth, roles('admin'), async (req, res) => {
       { $match: { feedbackAt: { $gte: from } } },
       { $group: { _id: '$helpful', count: { $sum: 1 } } },
     ]),
+    AppointmentReview.aggregate([
+      { $match: { createdAt: { $gte: from } } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: '$rating' },
+          reviewCount: { $sum: 1 },
+        },
+      },
+    ]),
   ]);
   const statuses = Object.fromEntries(statusRows.map((row) => [row._id, row.count]));
   const total = Object.values(statuses).reduce((sum, count) => sum + count, 0);
@@ -659,6 +822,8 @@ router.get('/admin/analytics', auth, roles('admin'), async (req, res) => {
     daily: dailyRows.map((row) => ({ date: row._id, count: row.count })),
     waitlist: Object.fromEntries(waitlist.map((row) => [row._id, row.count])),
     aiFeedback: Object.fromEntries(aiFeedback.map((row) => [String(row._id), row.count])),
+    patientRating: reviewRows[0]?.averageRating || null,
+    reviewCount: reviewRows[0]?.reviewCount || 0,
   });
 });
 const doctorBody = z.object({

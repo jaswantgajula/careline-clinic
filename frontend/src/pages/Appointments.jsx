@@ -30,6 +30,7 @@ import {
   LogIn,
   Play,
   History,
+  FileText,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { daysAhead, dateKey } from '../services/demo';
@@ -46,12 +47,16 @@ import {
 } from '../components/UI';
 import DoctorCard from '../components/DoctorCard';
 import PageHeading from '../components/PageHeading';
+import { ReviewForm, VisitSummaryEditor, VisitSummaryView } from '../components/VisitSummary';
 export default function Appointments({ user, demo, bookings, onReschedule, onUpdate, notify }) {
   const [tab, setTab] = useState('Upcoming'),
     [search, setSearch] = useState(''),
     [detail, setDetail] = useState(null),
     [cancelTarget, setCancelTarget] = useState(null),
     [auditTrail, setAuditTrail] = useState([]),
+    [careSummary, setCareSummary] = useState(null),
+    [review, setReview] = useState(null),
+    [summaryTarget, setSummaryTarget] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const role = user?.role || 'patient';
@@ -111,6 +116,8 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
   }
   async function openDetail(a) {
     setDetail(a);
+    setCareSummary(null);
+    setReview(null);
     if (demo) {
       setAuditTrail([
         {
@@ -133,12 +140,38 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
             ]
           : []),
       ]);
-    } else {
-      try {
-        setAuditTrail(await api(`/appointments/${a._id}/audit`));
-      } catch {
-        setAuditTrail([]);
+      if (a.status === 'completed') {
+        setCareSummary({
+          _id: `summary-${a._id}`,
+          status: 'published',
+          diagnosis: 'Routine follow-up completed; recovery is progressing as expected.',
+          advice:
+            'Continue regular hydration, balanced meals and the activity plan discussed during the visit.',
+          medications: [
+            {
+              name: 'Sample medication',
+              dosage: 'As directed',
+              frequency: 'Once daily',
+              duration: '5 days',
+              instructions: 'Demo information only — not a real prescription.',
+            },
+          ],
+          followUpDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+          privateNotes: role === 'doctor' ? 'Demo-only private clinical note.' : undefined,
+          publishedAt: new Date().toISOString(),
+        });
       }
+    } else {
+      const [trail, summary, savedReview] = await Promise.all([
+        api(`/appointments/${a._id}/audit`).catch(() => []),
+        role === 'patient' || role === 'doctor'
+          ? api(`/appointments/${a._id}/summary`).catch(() => null)
+          : null,
+        api(`/appointments/${a._id}/review`).catch(() => null),
+      ]);
+      setAuditTrail(trail);
+      setCareSummary(summary);
+      setReview(savedReview);
     }
   }
   async function checkIn(a) {
@@ -387,6 +420,44 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
           </div>
           <h3>Reason for visit</h3>
           <p className="muted">{detail.reason || 'No additional information provided.'}</p>
+          {(role === 'patient' || role === 'doctor') && careSummary && (
+            <VisitSummaryView
+              appointment={detail}
+              summary={careSummary}
+              demo={demo}
+              showPrivate={role === 'doctor'}
+            />
+          )}
+          {role === 'patient' && detail.status === 'completed' && !careSummary && (
+            <Notice>Your doctor has not published a visit summary yet.</Notice>
+          )}
+          {role === 'doctor' && ['in-consultation', 'completed'].includes(detail.status) && (
+            <button
+              className="button primary small"
+              onClick={() => {
+                setSummaryTarget(detail);
+                setDetail(null);
+              }}
+            >
+              <FileText size={16} />
+              {careSummary ? 'Open consultation summary' : 'Create consultation summary'}
+            </button>
+          )}
+          {role === 'patient' && detail.status === 'completed' && (
+            <ReviewForm
+              appointment={detail}
+              review={review}
+              demo={demo}
+              onSaved={setReview}
+              notify={notify}
+            />
+          )}
+          {(role === 'doctor' || role === 'admin') && review && (
+            <div className="staff-review">
+              <strong>Patient feedback · {review.rating}/5</strong>
+              <p>{review.comment || 'No written feedback was provided.'}</p>
+            </div>
+          )}
           <div className="detail-actions">
             <a
               className="button subtle small"
@@ -444,6 +515,16 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
             </button>
           </footer>
         </Modal>
+      )}
+      {summaryTarget && (
+        <VisitSummaryEditor
+          appointment={summaryTarget}
+          summary={careSummary}
+          demo={demo}
+          notify={notify}
+          onSaved={setCareSummary}
+          onClose={() => setSummaryTarget(null)}
+        />
       )}
     </>
   );
