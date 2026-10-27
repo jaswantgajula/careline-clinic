@@ -2,6 +2,14 @@
 
 A MERN appointment scheduler for one clinic with multiple doctors. Includes responsive light and dark themes, Google sign-in, a patient portal, a live doctor queue, smart waitlists, admin analytics, Razorpay **test-mode** checkout and an optional AI specialty finder.
 
+## Live deployment
+
+- **Application:** [careline-clinic.vercel.app](https://careline-clinic.vercel.app)
+- **Backend health:** [careline-clinic-api.onrender.com/api/health](https://careline-clinic-api.onrender.com/api/health)
+- **Source code:** [github.com/jaswantgajula/careline-clinic](https://github.com/jaswantgajula/careline-clinic)
+
+The public deployment uses Vercel for the React frontend, Render for the Express API and MongoDB Atlas for persistent data. Render's free instance may take approximately 50 seconds to wake after inactivity.
+
 ## Standout features
 
 - Google Identity Services sign-in with server-side ID-token verification and safe account linking.
@@ -98,11 +106,73 @@ npm run build
 
 Tests create and destroy an isolated MongoDB replica set; the first run may download the official MongoDB binary. They do not use your configured database. Coverage includes concurrent bookings, patient overlaps, rescheduling rollback, duplicate/late payments, refunds, ownership, Google account linking, clinic queue transitions, waitlist allocation/expiry, private visit-summary boundaries, PDF generation, verified appointment reviews, calendar export, input constraints, authentication and conflicting schedule changes.
 
-The production frontend is built into `frontend/dist` and served by Express.
+The frontend build is emitted to `frontend/dist`. It may be served by Express for a single-host deployment; the public classroom deployment serves it independently through Vercel.
 
 ## Deployment
 
-Use a Node-capable host and MongoDB Atlas. Build with `npm ci && npm run build`, set `NODE_ENV=production`, `HOST=0.0.0.0`, the host's `PORT`, your HTTPS `APP_ORIGIN`, and the service secrets. Start with `npm run start -w backend`. Serve the frontend and API from the same origin. Configure HTTPS, Razorpay webhooks, and automatic payment capture. This repository has not yet been deployed to a public host.
+The classroom deployment follows the instructor's Vercel + Render architecture:
+
+### Render backend
+
+- Repository: this GitHub repository
+- Root directory: `backend`
+- Runtime: Node
+- Build command: `npm install`
+- Start command: `npm start`
+- Health route: `/api/health`
+
+Required Render environment variables:
+
+```env
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=use-a-long-random-production-secret
+NODE_ENV=production
+APP_ORIGIN=https://careline-clinic.vercel.app
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=your-test-key-secret
+RAZORPAY_WEBHOOK_SECRET=your-webhook-secret
+AI_API_URL=https://your-provider.example/v1/chat/completions
+AI_API_KEY=your-provider-key
+AI_MODEL=your-provider-model
+SEED_ADMIN_PASSWORD=your-fictional-admin-password
+SEED_DOCTOR_PASSWORD=your-fictional-doctor-password
+```
+
+Render supplies `PORT`; do not set it manually. The application binds to `0.0.0.0` automatically in production. Set MongoDB Atlas Network Access appropriately for the cloud service and keep all credentials exclusively in Render.
+
+### Vercel frontend
+
+- Repository: this GitHub repository
+- Framework preset: Vite
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+
+Required Vercel environment variable:
+
+```env
+VITE_API_URL=https://careline-clinic-api.onrender.com
+```
+
+`frontend/vercel.json` supplies the SPA rewrite required for direct React Router URLs such as `/appointments`. After changing a Vite environment variable, redeploy the frontend because the value is embedded during the build.
+
+### External production configuration
+
+- Add `https://careline-clinic.vercel.app` to the Google Web OAuth client's authorized JavaScript origins.
+- Configure the Razorpay **test-mode** webhook URL as `https://careline-clinic-api.onrender.com/api/payments/webhook`.
+- Subscribe the webhook to `payment.captured` and `order.paid`.
+- Enable automatic capture in the Razorpay test account.
+- Use `SameSite=None`, secure HTTP-only cookies and credentialed CORS requests across the Vercel and Render domains; these are configured by the application when `NODE_ENV=production`.
+
+After deployment, test registration, password and Google login, refresh persistence, booking, payment, cancellation/refund, direct route refreshes, AI guidance, waitlists, notifications and every staff role. Existing seeded staff passwords are preserved; changing `SEED_ADMIN_PASSWORD` or `SEED_DOCTOR_PASSWORD` does not silently rotate stored account passwords.
+
+### Fictional demonstration accounts
+
+- Administrator: `admin@careline.test`
+- Doctors: `ananya@careline.test`, `rohan@careline.test`, `priya@careline.test`, `arjun@careline.test`, `meera@careline.test`, `kabir@careline.test`
+
+Use privately configured seed passwords and never publish them in this README or the repository.
 
 Do not upload real patient data to this classroom project. Visit summaries and prescriptions are demonstration records, not a production electronic medical-record system. In-app reminders are complete; the email preference is ready for a transactional email provider, but no outbound email credentials are included. Password reset, diagnostic attachments and multi-clinic support remain outside the agreed version.
 
