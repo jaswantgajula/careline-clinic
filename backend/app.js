@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import mongoose from 'mongoose';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -14,6 +15,27 @@ import { paymentsReady } from './config/razorpay.js';
 import { googleAuthReady } from './services/googleAuth.service.js';
 import { User, Doctor, Appointment, Payment, Claim } from './models/index.js';
 const app = express();
+const allowedOrigins = new Set([
+  ...(process.env.APP_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+  ...(process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://127.0.0.1:5173', 'http://localhost:4000', 'http://127.0.0.1:4000']),
+]);
+const originAllowed = (origin) => !origin || allowedOrigins.has(origin);
+app.use(
+  cors({
+    credentials: true,
+    origin(origin, callback) {
+      if (originAllowed(origin)) return callback(null, true);
+      const error = new Error('Request origin is not allowed.');
+      error.status = 403;
+      callback(error);
+    },
+  }),
+);
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -72,11 +94,7 @@ app.get('/api/health', (req, res) =>
 app.use('/api', (req, res, next) => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.get('origin');
-    const allowed = [process.env.APP_ORIGIN || 'http://localhost:5173'];
-    if (process.env.NODE_ENV !== 'production') {
-      allowed.push('http://127.0.0.1:5173', 'http://localhost:4000', 'http://127.0.0.1:4000');
-    }
-    if (origin && !allowed.includes(origin))
+    if (!originAllowed(origin))
       return res.status(403).json({ message: 'Request origin is not allowed.' });
   }
   if (mongoose.connection.readyState !== 1)

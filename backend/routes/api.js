@@ -79,8 +79,9 @@ async function appointmentForUser(appointmentId, user) {
 function session(res, u) {
   res.cookie('session', jwt.sign({ id: u._id }, process.env.JWT_SECRET, { expiresIn: '7d' }), {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: process.env.NODE_ENV === 'production',
+    path: '/',
     maxAge: 7 * 86400000,
   });
 }
@@ -118,8 +119,9 @@ router.post('/auth/google', loginLimit, async (req, res) => {
 router.post('/auth/logout', (req, res) => {
   res.clearCookie('session', {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: process.env.NODE_ENV === 'production',
+    path: '/',
   });
   res.json({ ok: true });
 });

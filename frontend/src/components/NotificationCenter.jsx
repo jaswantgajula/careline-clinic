@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, Check, Circle, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { api } from '../services/api';
+import { API_ORIGIN, api } from '../services/api';
 import { dateLabel, timeLabel } from './UI';
 
 const demoItems = [
@@ -40,7 +40,7 @@ export default function NotificationCenter({ demo, user, onLiveUpdate }) {
   useEffect(() => {
     refresh().catch(() => {});
     if (!user || demo) return;
-    const events = new EventSource('/api/events', { withCredentials: true });
+    const events = new EventSource(`${API_ORIGIN}/api/events`, { withCredentials: true });
     const update = () => {
       refresh().catch(() => {});
       onLiveUpdate?.();

@@ -43,9 +43,9 @@ if (process.env.MONGODB_URI) {
     console.error('Database unavailable:', e.message);
   }
 } else console.log('No MongoDB configured. API is running in preview mode.');
-app.listen(process.env.PORT || 4000, process.env.HOST || '127.0.0.1', () =>
-  console.log('Careline API: http://127.0.0.1:4000'),
-);
+const port = Number(process.env.PORT) || 4000;
+const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+app.listen(port, host, () => console.log(`Careline API listening on ${host}:${port}`));
 setInterval(() => {
   if (mongoose.connection.readyState === 1) {
     void releaseExpired().catch((e) => console.error(e.message));

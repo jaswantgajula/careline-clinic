@@ -1,7 +1,9 @@
+export const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
 export async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(`${API_ORIGIN}/api${path}`, {
       ...options,
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', ...options.headers },
