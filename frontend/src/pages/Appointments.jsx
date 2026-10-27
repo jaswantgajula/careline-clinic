@@ -475,15 +475,17 @@ export default function Appointments({ user, demo, bookings, onReschedule, onUpd
             {auditTrail.length ? (
               auditTrail.map((event) => (
                 <div className="audit-event" key={event._id}>
-                  <span />
-                  <div>
-                    <strong>{event.action.replaceAll('-', ' ')}</strong>
+                  <span className="audit-dot" />
+                  <div className="audit-event-body">
+                    <div className="audit-event-heading">
+                      <strong>{event.action.replaceAll('-', ' ')}</strong>
+                      {event.toStatus && <Badge tone="neutral">{event.toStatus}</Badge>}
+                    </div>
                     <small>
                       {dateLabel(event.createdAt)} · {timeLabel(event.createdAt)}
                       {event.actor?.name ? ` · ${event.actor.name}` : ''}
                     </small>
                   </div>
-                  {event.toStatus && <Badge tone="neutral">{event.toStatus}</Badge>}
                 </div>
               ))
             ) : (
